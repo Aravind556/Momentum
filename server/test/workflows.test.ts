@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { IST, setHours, setupTestEnv, signUp, type TestEnv } from "./helpers.js";
-import { verifyTasks, syncConnection } from "../src/services/integrations.js";
-import { integrationConnections } from "../src/db/schema.js";
+import { verifyTasks, syncConnection } from "../src/modules/platforms/service.js";
+import { integrationConnections } from "../src/core/db/schema.js";
 
 const DAY = "2026-10-20";
 const MIN = 60_000;
@@ -49,7 +49,7 @@ const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => 
 let t: TestEnv;
 beforeAll(async () => {
   process.env.YOUTUBE_API_KEY = "test-key";
-  const { env } = await import("../src/env.js");
+  const { env } = await import("../src/core/env.js");
   env.youtubeApiKey = "test-key";
   t = await setupTestEnv({ fetch: fakeFetch });
 });
@@ -126,93 +126,13 @@ describe("Workflow B — focus session", () => {
   });
 });
 
-describe("Workflow C — circles, challenges, leaderboard, privacy", () => {
-  it("invite → join → challenge → progress → leaderboard, without leaking private data", async () => {
-    t.clock.now = Date.parse(IST(DAY, "10:00"));
-    const owner = await signUp(t.app, "Owner");
-    const friend = await signUp(t.app, "Friend");
-    const outsider = await signUp(t.app, "Outsider");
-
-    const circle = await owner.post("/api/circles", { name: "DSA Prep", rankingMode: "consistency" });
-    expect(circle.status).toBe(201);
-    expect((await outsider.get(`/api/circles/${circle.body.id}/dashboard`)).status).toBe(404);
-
-    const inv = await owner.post(`/api/circles/${circle.body.id}/invitations`, { maxUses: 1 });
-    expect(inv.body.code).toMatch(/^[A-Z2-9]{10}$/);
-    expect((await friend.post(`/api/invitations/${inv.body.code}/accept`)).status).toBe(200);
-    expect((await outsider.post(`/api/invitations/${inv.body.code}/accept`)).status).toBe(400); // used up
-    expect((await outsider.post(`/api/invitations/NOTREALCODE/accept`)).status).toBe(404);
-
-    const ch = await owner.post("/api/challenges", {
-      circleId: circle.body.id,
-      title: "Daily problem",
-      startDate: DAY,
-      endDate: "2026-10-26",
-      metric: "completions",
-      individualTarget: 1,
-      collectiveTarget: 5,
-      taskTemplate: { title: "Solve a problem", estimatedMinutes: 30, splittable: false },
-    });
-    expect(ch.status).toBe(201);
-    expect((await friend.post(`/api/challenges/${ch.body.id}/join`)).status).toBe(200);
-    expect((await outsider.post(`/api/challenges/${ch.body.id}/join`)).status).toBe(404);
-
-    // Friend has a private task and a challenge task.
-    await friend.post("/api/tasks", { title: "Therapy appointment prep", description: "very private", estimatedMinutes: 30 });
-    const friendTasks = await friend.get("/api/tasks");
-    const chTask = friendTasks.body.find((x: { challengeId: string }) => x.challengeId === ch.body.id);
-    expect(chTask).toBeTruthy();
-    await friend.post(`/api/tasks/${chTask.id}/complete`, { occurrenceDate: DAY });
-
-    const detail = await owner.get(`/api/challenges/${ch.body.id}`);
-    const friendRow = detail.body.leaderboard.find((r: { user: { userId: string } }) => r.user.userId === friend.userId);
-    expect(friendRow.progress).toBe(1);
-    expect(detail.body.collective.value).toBe(1);
-
-    const feed = await owner.get(`/api/circles/${circle.body.id}/activities`);
-    const types = feed.body.items.map((a: { type: string }) => a.type);
-    expect(types).toContain("task_completed");
-    expect(types).toContain("challenge_milestone");
-    expect(JSON.stringify(feed.body)).not.toContain("Therapy");
-    expect(JSON.stringify(feed.body)).not.toContain("very private");
-
-    const dash = await owner.get(`/api/circles/${circle.body.id}/dashboard`);
-    expect(JSON.stringify(dash.body)).not.toContain("Therapy");
-    expect(dash.body.members).toHaveLength(2);
-
-    const lb = await owner.get(`/api/circles/${circle.body.id}/leaderboard?mode=challenge`);
-    expect(lb.body.rows[0].user.userId).toBe(friend.userId);
-    expect(lb.body.rows[0].breakdown[0].label).toBe("Challenge progress");
-
-    // reactions & comments are members-only
-    const act = feed.body.items[0].id;
-    expect((await friend.post(`/api/activities/${act}/reactions`, { emoji: "🔥" })).body.reacted).toBe(true);
-    expect((await outsider.post(`/api/activities/${act}/reactions`, { emoji: "🔥" })).status).toBe(404);
-
-    // opting out hides a member from the leaderboard
-    await friend.patch("/api/me", { preferences: { privacy: { showOnLeaderboard: false } } });
-    const lb2 = await owner.get(`/api/circles/${circle.body.id}/leaderboard`);
-    expect(lb2.body.hiddenCount).toBe(1);
-    expect(lb2.body.rows.find((r: { user: { userId: string } }) => r.user.userId === friend.userId)).toBeUndefined();
-
-    // member removal and leaving
-    expect((await friend.del(`/api/circles/${circle.body.id}/members/${owner.userId}`)).status).toBe(403);
-    expect((await owner.del(`/api/circles/${circle.body.id}/members/${friend.userId}`)).status).toBe(200);
-    expect((await friend.get(`/api/circles/${circle.body.id}/dashboard`)).status).toBe(404);
-    const inv2 = await owner.post(`/api/circles/${circle.body.id}/invitations`, {});
-    expect((await friend.post(`/api/invitations/${inv2.body.code}/accept`)).status).toBe(403); // removed users can't self-rejoin
-    const left = await owner.post(`/api/circles/${circle.body.id}/leave`);
-    expect(left.body.deleted).toBe(true); // last member leaving deletes the circle
-  });
-});
-
 describe("Integrations — LeetCode verification", () => {
   it("verifies only distinct qualifying submissions and isolates provider failures", async () => {
     const u = await signUp(t.app, "Coder");
     t.clock.now = Date.parse(IST(DAY, "09:00"));
     provider.mode = "ok";
-    expect((await u.post("/api/integrations/leetcode/connect", { username: "ghost" })).status).toBe(404);
-    expect((await u.post("/api/integrations/leetcode/connect", { username: "coder1" })).status).toBe(200);
+    expect((await u.put("/api/integrations/leetcode", { handle: "ghost" })).status).toBe(404);
+    expect((await u.put("/api/integrations/leetcode", { handle: "coder1" })).status).toBe(200);
 
     const task = await u.post("/api/tasks", {
       title: "Two mediums",
@@ -231,14 +151,23 @@ describe("Integrations — LeetCode verification", () => {
       { id: "3", title: "Hard one", titleSlug: "hard-one", timestamp: ts("10:30") }, // wrong difficulty
     ];
     t.clock.now = Date.parse(IST(DAY, "11:00"));
-    let sync = await u.post("/api/integrations/leetcode/sync");
+    // "Sync now" has a 60 s cooldown; within it the last result is returned without calling LeetCode.
+    const syncNow = () => {
+      t.clock.now += 61_000;
+      return u.post("/api/integrations/leetcode/sync");
+    };
+    let sync = await syncNow();
     expect(sync.body.ok).toBe(true);
+    const calls = provider.calls;
+    const again = await u.post("/api/integrations/leetcode/sync");
+    expect(again.body.cooldown).toBe(true);
+    expect(provider.calls).toBe(calls);
     let tasks = await u.get("/api/tasks");
     expect(tasks.body.find((x: { id: string }) => x.id === task.body.id).lastCompletion.verificationStatus).toBe("pending");
 
     // Provider outage: status unchanged, connection backs off.
     provider.mode = "down";
-    sync = await u.post("/api/integrations/leetcode/sync");
+    sync = await syncNow();
     expect(sync.body.ok).toBe(false);
     tasks = await u.get("/api/tasks");
     expect(tasks.body.find((x: { id: string }) => x.id === task.body.id).lastCompletion.verificationStatus).toBe("pending");
@@ -246,13 +175,13 @@ describe("Integrations — LeetCode verification", () => {
     expect(list.body.find((x: { provider: string }) => x.provider === "leetcode").connection.status).toBe("error");
 
     provider.mode = "ratelimit";
-    sync = await u.post("/api/integrations/leetcode/sync");
+    sync = await syncNow();
     expect(sync.body.kind).toBe("rate_limited");
 
     // Recovery with a second distinct medium → verified, events deduplicated.
     provider.mode = "ok";
     provider.submissions.push({ id: "4", title: "LRU Cache", titleSlug: "lru-cache", timestamp: ts("10:45") });
-    sync = await u.post("/api/integrations/leetcode/sync");
+    sync = await syncNow();
     expect(sync.body.ok).toBe(true);
     expect(sync.body.newEvents).toBe(1); // earlier events already stored
     tasks = await u.get("/api/tasks");
@@ -272,7 +201,7 @@ describe("Integrations — LeetCode verification", () => {
       { date: "2026-10-19", question: { titleSlug: "potd-yesterday", title: "Yesterday" } },
       { date: "2026-10-20", question: { titleSlug: "potd-today", title: "Today" } },
     ];
-    await u.post("/api/integrations/leetcode/connect", { username: "potduser" });
+    await u.put("/api/integrations/leetcode", { handle: "potduser" });
     const task = await u.post("/api/tasks", {
       title: "LeetCode POTD",
       estimatedMinutes: 45,
@@ -300,100 +229,13 @@ describe("Integrations — LeetCode verification", () => {
     expect(await status()).toBe("verified");
   });
 
-  it("disconnect deletes credentials and stops sync", async () => {
+  it("disconnect stops sync", async () => {
     const u = await signUp(t.app, "Leaver");
     provider.mode = "ok";
-    await u.post("/api/integrations/leetcode/connect", { username: "leaver" });
+    await u.put("/api/integrations/leetcode", { handle: "leaver" });
     expect((await u.del("/api/integrations/leetcode")).status).toBe(204);
     await expect(syncConnection(t.services, u.userId, "leetcode")).rejects.toThrow();
     const rows = await t.database.db.select().from(integrationConnections);
-    expect(rows.every((r) => !r.encryptedCredentials || r.encryptedCredentials.startsWith("v1:"))).toBe(true);
-  });
-});
-
-describe("Workflow D — playlist import and multi-day plan", () => {
-  it("imports, plans by real duration within the daily budget, and tracks progress", async () => {
-    const u = await signUp(t.app, "Learner");
-    await setHours(u, "18:00", "22:00");
-    t.clock.now = Date.parse(IST(DAY, "09:00"));
-    expect((await u.post("/api/playlists/import", { url: "https://example.com/watch?v=1" })).status).toBe(400);
-    const imp = await u.post("/api/playlists/import", { url: "https://www.youtube.com/playlist?list=PLabcdefghijk" });
-    expect(imp.status).toBe(201);
-    const pl = imp.body.playlist;
-    expect(pl.items).toHaveLength(6);
-    expect(pl.stats.totalMinutes).toBe(5 * 40 + 70);
-
-    // A class every Wednesday 18:00–20:00 must be respected.
-    await u.post("/api/commitments", {
-      title: "Evening class",
-      startAt: IST("2026-10-21", "18:00"),
-      endAt: IST("2026-10-21", "20:00"),
-      recurrence: { type: "weekly", weekdays: [3] },
-    });
-
-    const cfg = {
-      startDate: DAY,
-      targetDate: "2026-10-23",
-      studyWeekdays: [1, 2, 3, 4, 5],
-      dailyMinutes: 90,
-      sessionMinutes: 45,
-      allowSplitVideos: true,
-      inOrder: true,
-      revisionMinutes: 0,
-    };
-    // 270 min at 90 min/day cannot fit in two days: infeasible, with a projected finish date.
-    const tight = await u.post(`/api/playlists/${pl.id}/plan/preview`, { ...cfg, targetDate: "2026-10-21" });
-    expect(tight.status).toBe(200);
-    expect(tight.body.feasible).toBe(false);
-    // Whole (≤45 min) videos don't always pack into the 90-minute budget, so 4 study days are needed.
-    expect(tight.body.projectedFinish).toBe("2026-10-23");
-    expect(tight.body.neededDailyMinutes).toBe(135);
-
-    const preview = await u.post(`/api/playlists/${pl.id}/plan/preview`, cfg);
-    expect(preview.body.feasible).toBe(true);
-    const applied = await u.post(`/api/playlists/${pl.id}/plan/apply`, cfg);
-    expect(applied.body.blocks).toEqual(preview.body.blocks); // deterministic: preview == applied
-
-    const view = await u.get(`/api/schedules?start=${DAY}&end=2026-10-23`);
-    const focus = view.body.blocks.filter((b: { kind: string }) => b.kind === "focus");
-    const perDay = new Map<string, number>();
-    for (const b of focus) perDay.set(b.day, (perDay.get(b.day) ?? 0) + (Date.parse(b.endAt) - Date.parse(b.startAt)) / MIN);
-    for (const m of perDay.values()) expect(m).toBeLessThanOrEqual(90);
-    expect([...perDay.values()].reduce((a, b) => a + b, 0)).toBe(270);
-    // Distribution follows durations, not "videos ÷ days".
-    expect(perDay.size).toBe(4);
-    // Order is preserved and Wednesday's class is respected.
-    const firstStart = (title: string) => Math.min(...focus.filter((b: { title: string }) => b.title === title).map((b: { startAt: string }) => Date.parse(b.startAt)));
-    for (let i = 1; i < 6; i++) expect(firstStart(`Lecture ${i}`)).toBeLessThan(firstStart(`Lecture ${i + 1}`));
-    for (const b of focus.filter((x: { day: string }) => x.day === "2026-10-21")) {
-      expect(Date.parse(b.startAt)).toBeGreaterThanOrEqual(Date.parse(IST("2026-10-21", "20:00")));
-    }
-    // The 70-minute video is split into sessions no longer than 45 minutes.
-    const long = focus.filter((b: { title: string }) => b.title === "Lecture 3");
-    expect(long.length).toBe(2);
-
-    // Self-reported progress: partial keeps position; completed completes the task manually (never "verified").
-    const item = pl.items[0];
-    const partial = await u.patch(`/api/playlist-items/${item.id}`, { status: "partial", positionSeconds: 600 });
-    expect(partial.body.items[0].positionSeconds).toBe(600);
-    const done = await u.patch(`/api/playlist-items/${item.id}`, { status: "completed" });
-    expect(done.body.stats.completed).toBe(1);
-    const tasks = await u.get("/api/tasks");
-    const videoTask = tasks.body.find((x: { id: string }) => x.id === done.body.items[0].taskId);
-    expect(videoTask.status).toBe("completed");
-    expect(videoTask.lastCompletion.verificationStatus).toBe("manual");
-  });
-
-  it("offers a manual fallback when YouTube is not configured", async () => {
-    const { env } = await import("../src/env.js");
-    env.youtubeApiKey = "";
-    const u = await signUp(t.app, "NoKey");
-    const res = await u.post("/api/playlists/import", { url: "https://www.youtube.com/playlist?list=PLabcdefghijk" });
-    expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe("youtube_not_configured");
-    const manual = await u.post("/api/playlists/manual", { title: "Course", lessons: [{ title: "L1", minutes: 30 }, { title: "L2", minutes: 45 }] });
-    expect(manual.status).toBe(201);
-    expect(manual.body.playlist.stats.totalMinutes).toBe(75);
-    env.youtubeApiKey = "test-key";
+    expect(rows.find((r) => r.userId === u.userId)?.status).toBe("disconnected");
   });
 });

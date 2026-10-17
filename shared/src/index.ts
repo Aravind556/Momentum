@@ -7,3 +7,7 @@ export * from "./scheduler/greedy.js";
 export * from "./scheduler/validate.js";
 export * from "./focus.js";
 export * from "./metrics.js";
+export * from "./platforms.js";
+export * from "./sm2.js";
+export * from "./pace.js";
+export * from "./points.js";

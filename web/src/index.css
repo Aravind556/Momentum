@@ -27,6 +27,10 @@
   /* Chart series (validated with the dataviz palette checks for this surface) */
   --chart-planned: #b98234;
   --chart-done: #6f7fe8;
+  /* Platform identity (small dots only, always next to the platform name) */
+  --platform-leetcode: #e2a24a;
+  --platform-codeforces: #6ea8ff;
+  --platform-codechef: #b98b66;
   color-scheme: dark;
 }
 
@@ -56,6 +60,9 @@
     --danger-soft: rgb(196 61 61 / 0.1);
     --chart-planned: #a8701c;
     --chart-done: #4f5fd6;
+    --platform-leetcode: #b7791f;
+    --platform-codeforces: #2f6fd6;
+    --platform-codechef: #8a5a33;
     color-scheme: light;
   }
 }
@@ -82,8 +89,11 @@
   --warn: #a8701c;
   --danger: #c43d3d;
   --danger-soft: rgb(196 61 61 / 0.1);
-    --chart-planned: #a8701c;
-    --chart-done: #4f5fd6;
+  --chart-planned: #a8701c;
+  --chart-done: #4f5fd6;
+  --platform-leetcode: #b7791f;
+  --platform-codeforces: #2f6fd6;
+  --platform-codechef: #8a5a33;
   color-scheme: light;
 }
 

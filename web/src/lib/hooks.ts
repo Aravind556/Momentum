@@ -36,4 +36,4 @@ export function useAction<TVars = void, TResult = unknown>(
 }
 
 /** Query keys touched by schedule-affecting changes. */
-export const SCHEDULE_KEYS: QueryKey[] = [["schedule"], ["tasks"], ["goals"], ["analytics"], ["me"]];
+export const SCHEDULE_KEYS: QueryKey[] = [["schedule"], ["tasks"], ["goals"], ["analytics"], ["me"], ["today"], ["forecast"]];

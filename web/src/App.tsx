@@ -3,20 +3,17 @@ import { authClient } from "./lib/auth-client";
 import { useMe } from "./lib/hooks";
 import { Spinner } from "./components/ui";
 import { Layout } from "./components/Layout";
-import { AuthPage, ResetPasswordPage } from "./pages/Auth";
-import { OnboardingPage } from "./pages/Onboarding";
-import { TodayPage } from "./pages/Today";
-import { PlannerPage } from "./pages/Planner";
-import { TasksPage } from "./pages/Tasks";
-import { FocusPage } from "./pages/Focus";
-import { CirclesPage } from "./pages/Circles";
-import { CircleDetailPage } from "./pages/CircleDetail";
-import { ChallengesPage, ChallengeDetailPage } from "./pages/Challenges";
-import { AnalyticsPage } from "./pages/Analytics";
-import { IntegrationsPage } from "./pages/Integrations";
-import { PlaylistsPage } from "./pages/Playlists";
-import { SettingsPage } from "./pages/Settings";
-import { JoinPage } from "./pages/Join";
+import { AuthPage } from "./features/auth/AuthPage";
+import { FocusPage } from "./features/focus/FocusPage";
+import { GroupDetailPage } from "./features/groups/GroupDetailPage";
+import { GroupsPage } from "./features/groups/GroupsPage";
+import { JoinPage } from "./features/groups/JoinPage";
+import { PlannerPage } from "./features/planner/PlannerPage";
+import { ProgressPage } from "./features/progress/ProgressPage";
+import { RoadmapDetailPage } from "./features/roadmaps/RoadmapDetailPage";
+import { RoadmapsPage } from "./features/roadmaps/RoadmapsPage";
+import { SettingsPage } from "./features/settings/SettingsPage";
+import { TodayPage } from "./features/today/TodayPage";
 
 export function App() {
   const session = authClient.useSession();
@@ -29,8 +26,6 @@ export function App() {
       <Routes>
         <Route path="/login" element={<AuthPage mode="login" />} />
         <Route path="/signup" element={<AuthPage mode="signup" />} />
-        <Route path="/forgot" element={<AuthPage mode="forgot" />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />} />
       </Routes>
     );
@@ -44,30 +39,22 @@ function SignedIn() {
   if (me.isPending) return <Spinner label="Loading your workspace" />;
   if (me.isError) return <Spinner label="Reconnecting" />;
 
-  const needsOnboarding = !me.data.profile.onboardedAt;
-  if (needsOnboarding && location.pathname !== "/onboarding" && !location.pathname.startsWith("/join")) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
   return (
     <Routes>
-      <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/login" element={<Navigate to={new URLSearchParams(location.search).get("next") || "/"} replace />} />
       <Route path="/signup" element={<Navigate to="/" replace />} />
       <Route element={<Layout />}>
         <Route path="/" element={<TodayPage />} />
         <Route path="/planner" element={<PlannerPage />} />
-        <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/tasks" element={<Navigate to="/planner?tab=tasks" replace />} />
+        <Route path="/roadmaps" element={<RoadmapsPage />} />
+        <Route path="/roadmaps/:id" element={<RoadmapDetailPage />} />
         <Route path="/focus" element={<FocusPage />} />
-        <Route path="/circles" element={<CirclesPage />} />
-        <Route path="/circles/:id" element={<CircleDetailPage />} />
-        <Route path="/challenges" element={<ChallengesPage />} />
-        <Route path="/challenges/:id" element={<ChallengeDetailPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/integrations" element={<IntegrationsPage />} />
-        <Route path="/playlists" element={<PlaylistsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/groups" element={<GroupsPage />} />
+        <Route path="/groups/:id" element={<GroupDetailPage />} />
         <Route path="/join/:code" element={<JoinPage />} />
+        <Route path="/progress" element={<ProgressPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
