@@ -36,21 +36,7 @@ export const CATEGORY_LABELS: Record<GoalCategory, string> = {
 
 export const PRIORITY_LABELS: Record<number, string> = { 1: "Low", 2: "Normal", 3: "High", 4: "Urgent" };
 
-export const RANKING_MODES = ["consistency", "volume", "challenge", "balanced"] as const;
-export type RankingMode = (typeof RANKING_MODES)[number];
-
-export const CHALLENGE_METRICS = ["completions", "focus_minutes", "verified"] as const;
-export type ChallengeMetric = (typeof CHALLENGE_METRICS)[number];
-
-export const NOTIFICATION_CATEGORIES = [
-  "upcoming_block",
-  "deadline",
-  "focus_end",
-  "circle",
-  "challenge",
-  "friend_milestone",
-  "weekly_recap",
-] as const;
+export const NOTIFICATION_CATEGORIES = ["upcoming_block", "deadline", "focus_end", "group", "reminder", "integration", "weekly_recap"] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, "Use HH:mm");
@@ -75,6 +61,34 @@ export const preferencesSchema = z.object({
   /** When true, time in a background tab counts as focus time until the user pauses. */
   countBackgroundTime: z.boolean().default(true),
   partialCountsTowardCompletion: z.boolean().default(true),
+  /**
+   * Reminders while today's plan has open items: a browser push every few hours, and one final
+   * email at the end of the day. Nothing is sent once everything is done.
+   */
+  reminders: z
+    .object({
+      /** Browser push every `every` hours from `startHour` while anything is open. */
+      push: z.boolean().default(true),
+      every: z.number().int().min(1).max(12).default(4),
+      startHour: z.number().int().min(0).max(23).default(9),
+      /** The final reminder of the day (email + push) at this local hour. */
+      email: z.boolean().default(true),
+      hour: z.number().int().min(0).max(23).default(21),
+      /** A push when a group task is due within two hours and still open. */
+      groupDueSoon: z.boolean().default(true),
+    })
+    .default({ push: true, every: 4, startHour: 9, email: true, hour: 21, groupDueSoon: true }),
+  /** Daily automation: build each day's plan from roadmaps, revisions and group tasks. */
+  planning: z
+    .object({
+      /** Also place the day's work into free time on the schedule. */
+      autoPlan: z.boolean().default(true),
+      /** Load guard: new roadmap items beyond this many minutes move to a later day. */
+      maxStudyMinutesPerDay: z.number().int().min(15).max(16 * 60).default(180),
+      /** At most this many revisions per day across all roadmaps (the rest carry over). */
+      dailyReviewCap: z.number().int().min(0).max(30).default(5),
+    })
+    .default({ autoPlan: true, maxStudyMinutesPerDay: 180, dailyReviewCap: 5 }),
   /** Category -> enabled. Missing categories are enabled. */
   notifications: z.partialRecord(z.enum(NOTIFICATION_CATEGORIES), z.boolean()).default({}),
   privacy: z
@@ -130,29 +144,37 @@ export const goalInputSchema = z.object({
   targetUnit: z.string().max(40).optional().nullable(),
   recurrence: recurrenceSchema.default({ type: "none" }),
   priority: z.number().int().min(1).max(4).default(2),
-  visibility: z.enum(["private", "circle"]).default("private"),
-  circleId: z.string().optional().nullable(),
-  challengeId: z.string().optional().nullable(),
   progressMethod: z.enum(["tasks", "quantity", "minutes"]).default("tasks"),
 });
 export type GoalInput = z.infer<typeof goalInputSchema>;
 
-export const verificationSchema = z.discriminatedUnion("provider", [
-  z.object({ provider: z.literal("none") }),
-  z.object({
-    provider: z.literal("leetcode"),
-    /** count: N distinct problems · potd: solve that day's LeetCode Problem of the Day (UTC day). */
-    mode: z.enum(["count", "potd"]).default("count"),
-    count: z.number().int().min(1).max(50).default(1),
-    difficulty: z.enum(["Any", "Easy", "Medium", "Hard"]).default("Any"),
-  }),
-  z.object({
-    provider: z.literal("github"),
-    event: z.enum(["pr_opened", "pr_merged", "issue_closed", "commits"]),
-    repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, "owner/repo"),
-    count: z.number().int().min(1).max(100).default(1),
-  }),
-]);
+export const verificationSchema = z
+  .discriminatedUnion("provider", [
+    z.object({ provider: z.literal("none") }),
+    z.object({
+      provider: z.literal("leetcode"),
+      /**
+       * problem: an accepted submission of `slug` · count: N distinct problems ·
+       * potd: that day's LeetCode Problem of the Day (UTC day).
+       */
+      mode: z.enum(["count", "potd", "problem"]).default("count"),
+      count: z.number().int().min(1).max(50).default(1),
+      difficulty: z.enum(["Any", "Easy", "Medium", "Hard"]).default("Any"),
+      slug: z.string().regex(/^[a-z0-9-]{1,120}$/).optional(),
+    }),
+    z.object({
+      provider: z.literal("codeforces"),
+      /** problem: an accepted submission of `key` (e.g. "1850A") · count: N distinct problems. */
+      mode: z.enum(["count", "problem"]).default("count"),
+      count: z.number().int().min(1).max(50).default(1),
+      minRating: z.number().int().min(0).max(4000).optional(),
+      key: z.string().regex(/^\d{1,6}[A-Z]\d?$/).optional(),
+    }),
+  ])
+  .refine((v) => v.provider === "none" || v.mode !== "problem" || (v.provider === "leetcode" ? !!v.slug : !!v.key), {
+    message: "Pick the problem to verify",
+    path: ["mode"],
+  });
 export type VerificationConfig = z.infer<typeof verificationSchema>;
 
 const minuteField = z.number().int().min(5).max(24 * 60);
@@ -162,7 +184,6 @@ export const taskInputSchema = z
     title: z.string().trim().min(1).max(200),
     description: z.string().max(4000).optional().nullable(),
     goalId: z.string().optional().nullable(),
-    challengeId: z.string().optional().nullable(),
     estimatedMinutes: minuteField,
     priority: z.number().int().min(1).max(4).default(2),
     dueAt: isoDateTime.optional().nullable(),
@@ -260,51 +281,7 @@ export const completeTaskSchema = z.object({
   evidenceUrl: z.string().url().max(2000).optional().nullable(),
 });
 
-export const circleInputSchema = z.object({
+export const groupInputSchema = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().max(500).optional().nullable(),
-  rankingMode: z.enum(RANKING_MODES).default("consistency"),
-});
-
-export const challengeInputSchema = z
-  .object({
-    circleId: z.string(),
-    title: z.string().trim().min(1).max(120),
-    description: z.string().max(2000).optional().nullable(),
-    startDate: isoDate,
-    endDate: isoDate,
-    metric: z.enum(CHALLENGE_METRICS).default("completions"),
-    individualTarget: z.number().int().positive().max(100000).optional().nullable(),
-    collectiveTarget: z.number().int().positive().max(1000000).optional().nullable(),
-    taskTemplate: z
-      .object({ title: z.string().min(1).max(200), estimatedMinutes: minuteField, splittable: z.boolean().default(false) })
-      .optional()
-      .nullable(),
-  })
-  .refine((c) => c.endDate >= c.startDate, { message: "End date must be on or after start date", path: ["endDate"] });
-
-export const playlistImportSchema = z.object({ url: z.string().url().max(2000) });
-
-export const manualLessonsSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  lessons: z
-    .array(z.object({ title: z.string().trim().min(1).max(200), minutes: z.number().int().min(1).max(600), url: z.string().url().optional() }))
-    .min(1)
-    .max(500),
-});
-
-export const playlistPlanSchema = z.object({
-  targetDate: isoDate,
-  startDate: isoDate,
-  studyWeekdays: z.array(weekday).min(1),
-  dailyMinutes: z.number().int().min(10).max(16 * 60),
-  sessionMinutes: z.number().int().min(10).max(240),
-  allowSplitVideos: z.boolean().default(true),
-  inOrder: z.boolean().default(true),
-  revisionMinutes: z.number().int().min(0).max(240).default(0),
-});
-
-export const videoProgressSchema = z.object({
-  status: z.enum(["not_started", "partial", "completed"]),
-  positionSeconds: z.number().int().min(0).max(24 * 3600).optional(),
 });

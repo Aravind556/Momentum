@@ -1,12 +1,10 @@
 import request from "supertest";
 import type { Express } from "express";
-import { createApp } from "../src/app.js";
-import { createAuth } from "../src/auth.js";
-import { env } from "../src/env.js";
-import { openDatabase, runMigrations, type Database } from "../src/db/index.js";
-import { createRegistry } from "../src/integrations/registry.js";
-import type { FetchFn } from "../src/integrations/types.js";
-import type { Services } from "../src/services/context.js";
+import { bootstrap } from "../src/core/bootstrap.js";
+import type { Services } from "../src/core/context.js";
+import { openDatabase, runMigrations, type Database } from "../src/core/db/index.js";
+import { env } from "../src/core/env.js";
+import type { FetchFn } from "../src/modules/platforms/types.js";
 
 export interface TestEnv {
   app: Express;
@@ -16,17 +14,16 @@ export interface TestEnv {
   close(): Promise<void>;
 }
 
-/** Fresh in-memory Postgres (PGlite) with migrations, real auth, and a controllable clock. */
+/** Fresh in-memory Postgres (PGlite) with migrations, real auth, all modules, and a controllable clock. */
 export async function setupTestEnv(opts: { fetch?: FetchFn; now?: string } = {}): Promise<TestEnv> {
   const database = await openDatabase({ pgliteDir: "memory://" });
   await runMigrations(database);
   const clock = { now: Date.parse(opts.now ?? "2026-10-20T03:30:00Z") }; // 09:00 in Asia/Kolkata
-  const services: Services = {
-    db: database.db,
+  const { app, services } = bootstrap(database.db, {
     now: () => clock.now,
-    integrations: createRegistry(opts.fetch ?? (async () => new Response("{}", { status: 503 }))),
-  };
-  const app = createApp(services, createAuth(database.db));
+    fetch: opts.fetch ?? (async () => new Response("{}", { status: 503 })),
+    platformSpacingMs: 0,
+  });
   return { app, database, services, clock, close: () => database.close() };
 }
 
@@ -38,6 +35,7 @@ export interface Client {
   patch(url: string, body?: object): request.Test;
   del(url: string): request.Test;
   userId: string;
+  username: string;
 }
 
 let counter = 0;
@@ -45,11 +43,11 @@ let counter = 0;
 export async function signUp(app: Express, name = "User", timezone = "Asia/Kolkata"): Promise<Client> {
   counter += 1;
   const agent = request.agent(app);
-  const email = `${name.toLowerCase().replace(/\W/g, "")}${counter}@example.com`;
+  const username = `${name.toLowerCase().replace(/\W/g, "")}${counter}`.slice(0, 24);
   const res = await agent
     .post("/api/auth/sign-up/email")
     .set("origin", env.appUrl)
-    .send({ email, password: "correct-horse-battery", name });
+    .send({ email: `${username}@example.com`, password: "correct-horse-battery", name, username });
   if (res.status !== 200) throw new Error(`sign-up failed: ${res.status} ${res.text}`);
   const h = (t: request.Test) => t.set("x-requested-with", "cadence").set("origin", env.appUrl);
   const client: Client = {
@@ -60,6 +58,7 @@ export async function signUp(app: Express, name = "User", timezone = "Asia/Kolka
     patch: (url, body) => h(agent.patch(url)).send(body ?? {}),
     del: (url) => h(agent.delete(url)),
     userId: "",
+    username,
   };
   const me = await client.get("/api/me");
   client.userId = me.body.user.id;

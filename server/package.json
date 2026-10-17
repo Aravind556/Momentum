@@ -10,8 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate-cli.ts",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:migrate": "tsx src/core/db/migrate-cli.ts",
+    "db:seed": "tsx src/core/db/seed.ts"
   },
   "dependencies": {
     "@cadence/shared": "*",
@@ -23,15 +23,19 @@
     "express-rate-limit": "^8.0.0",
     "helmet": "^8.1.0",
     "luxon": "^3.7.2",
+    "nodemailer": "^7.0.13",
     "pg": "^8.16.0",
+    "web-push": "^3.6.7",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/luxon": "^3.7.1",
     "@types/node": "^22.18.0",
+    "@types/nodemailer": "^7.0.12",
     "@types/pg": "^8.15.0",
     "@types/supertest": "^6.0.3",
+    "@types/web-push": "^3.6.4",
     "drizzle-kit": "^0.31.5",
     "supertest": "^7.1.4",
     "tsup": "^8.5.0",

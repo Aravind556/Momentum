@@ -1,3 +1,4 @@
+import type { VerificationConfig } from "@cadence/shared";
 /** Formatting helpers that always render in the user's configured timezone. */
 
 export function fmtTime(iso: string | number, tz: string): string {
@@ -85,4 +86,13 @@ export function relativeTime(iso: string): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
+}
+
+/** Short label for how a task is verified, e.g. "LeetCode problem" or "Codeforces ×2". */
+export function verificationLabel(v: VerificationConfig): string | null {
+  if (v.provider === "none") return null;
+  const name = v.provider === "leetcode" ? "LeetCode" : "Codeforces";
+  if (v.mode === "problem") return `${name} problem`;
+  if (v.provider === "leetcode" && v.mode === "potd") return "LeetCode POTD";
+  return `${name} ×${v.count}`;
 }

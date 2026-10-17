@@ -4,13 +4,10 @@ import {
   Bell,
   CalendarDays,
   CircleDot,
-  Flag,
   Home,
-  ListTodo,
+  Map as MapIcon,
   LogOut,
   MoreHorizontal,
-  PlaySquare,
-  Plug,
   Settings,
   Timer,
   Users,
@@ -22,21 +19,20 @@ import { authClient } from "../lib/auth-client";
 import { relativeTime } from "../lib/format";
 import { useAction, useMe } from "../lib/hooks";
 import type { FocusSession, Notification } from "../lib/types";
+import { Avatar } from "./Avatar";
+import { PlanUpdates } from "./PlanUpdates";
 import { cx, IconButton } from "./ui";
 
 const NAV = [
   { to: "/", label: "Today", icon: Home, end: true },
   { to: "/planner", label: "Planner", icon: CalendarDays },
-  { to: "/tasks", label: "Goals & Tasks", icon: ListTodo },
+  { to: "/roadmaps", label: "Roadmaps", icon: MapIcon },
+  { to: "/groups", label: "Groups", icon: Users },
+  { to: "/progress", label: "Progress", icon: BarChart3 },
   { to: "/focus", label: "Focus", icon: Timer },
-  { to: "/circles", label: "Circles", icon: Users },
-  { to: "/challenges", label: "Challenges", icon: Flag },
-  { to: "/playlists", label: "Playlists", icon: PlaySquare },
-  { to: "/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/integrations", label: "Integrations", icon: Plug },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
-const MOBILE_PRIMARY = ["/", "/planner", "/focus", "/circles"];
+const MOBILE_PRIMARY = ["/", "/planner", "/roadmaps", "/groups"];
 
 export function Layout() {
   const me = useMe();
@@ -83,9 +79,7 @@ export function Layout() {
         </nav>
         {active.data?.session && <ActiveSessionPill session={active.data.session} onClick={() => navigate("/focus")} />}
         <div className="flex items-center gap-2 border-t border-line px-3 py-3">
-          <span className="flex size-8 items-center justify-center rounded-full bg-surface-3 text-base" aria-hidden>
-            {me.data?.profile.avatar}
-          </span>
+          <Avatar name={me.data?.profile.displayName ?? ""} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-medium">{me.data?.profile.displayName}</p>
             <p className="truncate text-xs text-faint">@{me.data?.profile.username}</p>
@@ -112,6 +106,7 @@ export function Layout() {
           </div>
         </header>
         <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 md:px-8 md:pb-10">
+          <PlanUpdates />
           <Outlet />
         </main>
       </div>
@@ -205,7 +200,7 @@ function NotificationsBell() {
                   className="flex w-full gap-2 px-3 py-2.5 text-left hover:bg-surface-2"
                   onClick={() => {
                     setOpen(false);
-                    const link = typeof n.payload.link === "string" ? n.payload.link : n.payload.circleId ? `/circles/${n.payload.circleId}` : n.payload.challengeId ? `/challenges/${n.payload.challengeId}` : null;
+                    const link = typeof n.payload.link === "string" ? n.payload.link : n.payload.groupId ? `/groups/${n.payload.groupId}` : null;
                     if (link) navigate(link);
                   }}
                 >

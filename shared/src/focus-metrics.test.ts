@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { focusDurations } from "./focus.js";
-import { computeStreaks, scoreMember, type MemberStats } from "./metrics.js";
+import { computeStreaks } from "./metrics.js";
 import { mergeIntervals, subtractIntervals } from "./intervals.js";
 
 const M = 60_000;
@@ -33,30 +33,6 @@ describe("streaks", () => {
     expect(computeStreaks(["active", "neutral", "active", "active", "missed"])).toEqual({ current: 3, longest: 3 });
     expect(computeStreaks(["active", "missed", "active", "neutral", "active"])).toEqual({ current: 2, longest: 2 });
     expect(computeStreaks(["missed", "missed"])).toEqual({ current: 0, longest: 0 });
-  });
-});
-
-describe("leaderboard scores", () => {
-  const base: MemberStats = {
-    userId: "u",
-    plannedOccurrences: 10,
-    completedOccurrences: 8,
-    completions: 8,
-    verifiedCompletions: 2,
-    activeDays: 5,
-    focusMinutes: 300,
-    challengeProgress: 0.4,
-  };
-  it("uses planned occurrences as the consistency denominator", () => {
-    expect(scoreMember("consistency", base, { periodDays: 7, maxCompletions: 8 }).score).toBe(0.8);
-    expect(scoreMember("consistency", { ...base, plannedOccurrences: 0, completedOccurrences: 0 }, { periodDays: 7, maxCompletions: 8 }).parts[0]!.detail).toContain(
-      "Nothing scheduled",
-    );
-  });
-  it("explains the balanced score", () => {
-    const s = scoreMember("balanced", base, { periodDays: 7, maxCompletions: 16 });
-    expect(s.parts).toHaveLength(3);
-    expect(s.score).toBeCloseTo(0.5 * 0.8 + 0.3 * 0.5 + 0.2 * (5 / 7), 3);
   });
 });
 

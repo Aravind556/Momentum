@@ -1,202 +1,112 @@
 # Cadence
 
-Plan your day, focus on the next task, record real progress, and stay accountable with friends.
+A study planner for CS students that plans your day for you and keeps your study group on track.
 
-**Define goals → Generate a schedule → Focus → Record real progress → Stay accountable.**
+## Features
 
-This is the implementation of [`writing-block.md`](./writing-block.md) (the PRD).
+**Daily plan (Today)**
+- Built automatically every day from your roadmaps, revisions, group tasks and your own tasks.
+- Placed into your free time around classes, blocked time and breaks, at your preferred time of day.
+- A load guard keeps days realistic: new items beyond your study limit or your free time move to a later day.
+- Tick to complete. LeetCode and Codeforces items only count after a matching **accepted submission** is found.
+- **Swap** an item for another of the same category, **skip** it for today, or start a **focus session**.
+- Re-plans instantly when anything changes (pace, follows, tasks, classes, availability, group tasks), with a short "plan updated" note.
+- **Coming up:** the next 7 days, estimated live from your current settings.
+
+**Roadmaps (learning)**
+- Paste problem links (LeetCode, Codeforces, CodeChef), any other links, topics, `# Section` headings or a YouTube playlist. Titles and difficulty are filled in automatically.
+- A pace preset sets new items per day and revision intensity: **Frequent / Decent / Rare**. Both can be changed separately at any time, and revisions can be turned off.
+- **Spaced repetition (SM-2):** finished items come back for revision at growing intervals. Rate each revision Again / Hard / Good / Easy.
+- Problems you've already solved are recognised and marked done.
+- Projected finish date, per-item progress, reorder, skip and pause.
+
+**Planner**
+- **Week:** a calendar with study blocks, classes and tentative blocks for future days. Drag a block to move and lock it.
+- **Tasks:** your own work (assignments, projects) with deadlines, durations, repeats, optional goals and optional problem verification. No revisions.
+- **Classes:** fixed or flexible commitments the plan works around.
+- **Availability:** weekly hours, recurring blocked time, days off and one-off hours.
+
+**Groups**
+- Unlimited members, invite codes, owner/admin/member roles.
+- **Shared roadmaps:** members choose to subscribe, each at their own pace. When everyone follows one, it becomes a **group roadmap** with combined progress.
+- **Group tasks:** a problem, a custom task or LeetCode's daily problem, set once, daily or on weekdays with a due time. They appear on everyone's Today and are verified per member.
+- **Leaderboard** (7 days / 30 days / all time):
+  - points by difficulty (Easy 10 / Medium 20 / Hard 30);
+  - +50 / +30 / +10% for the first three finishers, ranked by submission time;
+  - items from shared roadmaps count too.
+
+**Progress**
+- Solved problems per platform and difficulty, a 26-week activity heatmap, solving streak, top topics.
+- A feed of accepted submissions, each with "Revise" to add it to spaced repetition.
+- Focus time and task history.
+
+**Reminders & settings**
+- One email when tasks are still pending after your chosen hour, and a nudge when a group task is due within 2 hours. It syncs first, so already-solved work doesn't trigger it.
+- Study limit, revision cap, auto-placing, focus and break lengths, privacy (leaderboard opt-out), in-app notifications, light and dark theme.
+- Username + password sign-in.
+
+## Platforms
+
+| Platform | Connect with | Notes |
+|---|---|---|
+| LeetCode | Public username | Unofficial endpoint; only the last ~20 accepted submissions are visible, so press **Sync now** after a long session. |
+| Codeforces | Public handle | Official API, rate-limited to one request every 2 s. |
+| CodeChef | — | Links recognised; items are ticked by hand (no public API). |
+
+Syncing:
+- **When:** on demand (with a 60 s cooldown), whenever you tick an item, and lightly in the background.
+- **Rate limits:** requests to each platform share one queue, and your clicks always go first.
 
 ## Quick start
 
-**Requirements:** Node.js 20+ (tested on 22) and npm. You don't need a database server, Docker or any API keys to run locally. Without `DATABASE_URL` the API uses an embedded [PGlite](https://pglite.dev) database, which is the real PostgreSQL engine compiled to WASM. It stores data in `server/.data/pglite`.
+Requires Node.js 20+. Locally, no database server is needed: an embedded Postgres (PGlite) is used.
 
 ```bash
-# 1. Install dependencies (first time only)
 npm install
-
-# 2. Optional: demo data — two accounts sharing a Circle, sample tasks and a challenge
-npm run db:seed
-
-# 3. Start the API (port 3001) and the web app (port 5173)
-npm run dev
+npm run db:seed   # optional demo: sign in as "demo", "friend" or "sam" / "demo-password"
+npm run dev       # http://localhost:5173
 ```
 
-Open **http://localhost:5173** and either:
-- **create an account.** A short onboarding follows (name, working hours, timezone, an optional Circle and a first task); every step can be skipped.
-- **or sign in with a seeded demo account:** `demo@cadence.dev` / `demo-password`, or `friend@cadence.dev` / `demo-password`. Seeded items are labelled `[seed]`.
+Copy `.env.example` to `.env` and set `BETTER_AUTH_SECRET` (otherwise you're signed out on every restart).
 
-**Optional `.env`:** copy `.env.example` to `.env`. For local use, the useful setting is `BETTER_AUTH_SECRET`. Without it, a temporary secret is generated and **everyone is signed out whenever the server restarts**. Your data is kept either way. Generate a secret with:
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres, e.g. Supabase (session pooler, port 5432). TLS is automatic. Empty = embedded PGlite. |
+| `BETTER_AUTH_SECRET`, `APP_URL` | Required in production. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Reminder emails. Without them, emails are printed to the server console. |
+| `YOUTUBE_API_KEY` | Optional: import YouTube playlists into roadmaps. |
 
+**Production:**
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+npm ci && npm run build && npm start
 ```
+Migrations run on start, and the API serves the web app from the same origin.
 
-Don't put `NODE_ENV=production` or an `https://` `APP_URL` in the `.env` you use for `npm run dev`. Those settings are for production (below), and sign-in breaks locally if they're set.
-
-### Stopping, restarting and resetting
-
-- **Stop:** press `Ctrl+C` in the terminal running `npm run dev`. Prefer this over killing the process. PGlite writes to disk, and a hard kill during a write can leave the database unreadable (see *Troubleshooting*).
-- **Restart:** run `npm run dev` again. Data persists in `server/.data/pglite`.
-- **Start fresh:** stop the server, delete `server/.data/pglite` (this erases all local accounts and data), then optionally run `npm run db:seed` again.
-
-## First steps in the app
-
-1. **Planner → Availability:** set your working hours, recurring blocked time (lunch, gym) and date exceptions such as days off.
-2. **Today → Add commitment:** classes and meetings, which are *fixed* and never moved, or *flexible* items like "a 60-minute workout between 17:00 and 20:00".
-3. **Goals & Tasks → + Task:** give each task a duration and choose whether it is one continuous block or can be split into sessions. Optionally add a deadline, a time window, "must come after" dependencies, repeats, and verification.
-4. **Today → Generate schedule.** Anything that doesn't fit is listed under *Needs a slot* with the reason.
-5. **Start focus** on a block. When you finish, record what happened to the task. A finished timer never completes a task by itself.
-6. During the day, **Regenerate remaining** re-plans what's left. Completed, running and locked blocks and fixed commitments stay put. Dragging a block moves it and locks it.
-7. **Circles:** create one, then share an invitation code from the *Members* tab. Friends join under **Circles → Join**.
-
-### Tracking the LeetCode Problem of the Day (POTD)
-
-1. **Integrations → LeetCode:** enter your LeetCode username and click Connect. Your profile must be public; no password is needed.
-2. **Goals & Tasks → + Task:** set *Repeats* to **Every day**, *Verification* to **LeetCode accepted submissions**, and *Check* to **Solve the Problem of the Day**.
-3. Solve the POTD on LeetCode. The app syncs every ~30 minutes, or immediately with **Integrations → Sync now**. That day's task is then marked complete as **Verified by integration**.
-
-Notes on how the check behaves:
-- Only an **accepted** submission of **that day's** POTD counts.
-- LeetCode's day runs on **UTC** (05:30–05:30 IST), matching LeetCode's own streak.
-- Ticking the task yourself shows **Pending verification** until a sync confirms it.
-- Only your ~20 most recent accepted submissions are visible to the app, so sync soon after the POTD on heavy days.
-
-## Scripts, deployment and troubleshooting
-
-### Scripts
-
-| Command | What it does |
+| Script | |
 |---|---|
-| `npm run dev` | API (tsx watch) + Vite dev server with `/api` proxy |
-| `npm test` | Scheduler/domain unit tests + API integration tests (in-memory Postgres) |
-| `npm run typecheck` | TypeScript across `shared`, `server`, `web` |
-| `npm run build` | Production build (web → `web/dist`, API → `server/dist`) |
-| `npm start` | Run the built API; it also serves `web/dist` on the same origin |
-| `npm run db:generate` | Generate a SQL migration after changing `server/src/db/schema.ts` |
-| `npm run db:migrate` | Apply migrations (they also run automatically on server start) |
-| `npm run db:seed` | **Development only**: seed demo data labelled `[seed]` |
-
-### Production
-
-1. Set `NODE_ENV=production`, `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY` and `APP_URL` (the public `https://` origin). Use `DATABASE_URL` for PostgreSQL 14+, or `PGLITE_DIR` for a separate embedded database. Don't reuse the dev database, because the demo accounts have a published password.
-2. Run `npm ci && npm run build && npm start`. Migrations run on boot. The API serves the built web app from the same origin, so cookies stay first-party.
-3. Put it behind HTTPS. Secure cookies are enabled automatically when `APP_URL` is `https://`.
-
-### Troubleshooting
-
-| Problem | Fix |
-|---|---|
-| Web app starts on **5174** instead of 5173, and sign-in fails | Another process holds port 5173 (often an old dev server). Stop it, then restart `npm run dev`. Auth only trusts the origin in `APP_URL` (default `http://localhost:5173`). |
-| Signed out after every restart | Set `BETTER_AUTH_SECRET` in `.env`. |
-| Server crashes on start with `RuntimeError: Aborted()` from PGlite | The embedded database was damaged, usually by a hard kill. Delete the data folder (`server/.data/pglite`, or the `PGLITE_DIR` you set; **this erases its data**) and start again. Stop with `Ctrl+C` to avoid it. |
-| `/` shows "Cannot GET /" with `npm start` | Rebuild with `npm run build` (needs the Express 5 `/{*splat}` route in `server/src/app.ts`), and make sure no old server process is still holding port 3001. |
-| Password reset email never arrives | No email provider is configured. The reset link is printed in the server terminal. |
-| YouTube import says "not configured" | Set `YOUTUBE_API_KEY`, or use **Enter lessons manually**. |
-| GitHub "Connect" unavailable | Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (OAuth app callback: `{APP_URL}/api/integrations/github/callback`). |
-
-## Environment variables
-
-See [`.env.example`](./.env.example).
-
-| Variable | Required | Notes |
-|---|---|---|
-| `APP_URL` | prod | Public web origin. Used for auth callbacks and trusted-origin checks. |
-| `BETTER_AUTH_SECRET` | prod | Session signing secret. In dev an ephemeral secret is generated, so sessions reset on restart. |
-| `ENCRYPTION_KEY` | recommended | 32-byte base64 key for AES-256-GCM encryption of integration tokens. Derived from the auth secret if unset. |
-| `DATABASE_URL` | prod | PostgreSQL. Empty means embedded PGlite. |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | optional | GitHub OAuth app. Callback: `{APP_URL}/api/integrations/github/callback` |
-| `YOUTUBE_API_KEY` | optional | YouTube Data API v3 for playlist import. Manual lesson entry works without it. |
-| `LEETCODE_ENABLED` | optional | `false` disables the unofficial LeetCode adapter. |
-| `JOBS_ENABLED` | optional | Background reminders and integration sync (default on). |
+| `npm test` | Unit + API integration tests (in-memory Postgres, mocked platforms) |
+| `npm run typecheck` | All packages |
+| `npm run db:generate` / `db:migrate` | Create / apply migrations |
 
 ## Architecture
 
-A modular monolith in an npm-workspaces monorepo:
+An npm-workspaces monorepo:
 
 ```
-shared/   Pure TypeScript domain: scheduling engine, validator, time/interval math,
-          zod schemas shared by client and server, focus-timer math, streak & score formulas
-server/   Express 5 API · Drizzle ORM · PostgreSQL/PGlite · better-auth
-  src/services/      domain services (schedules, tasks, focus, completions, circles, …)
-  src/integrations/  provider adapters (LeetCode, GitHub, YouTube) behind one interface
-  src/jobs/          periodic jobs with Postgres-backed leases (no Redis)
-  drizzle/           SQL migrations
-web/      React 19 · Vite · Tailwind 4 · TanStack Query · React Router
+shared/   pure TypeScript: schemas, scheduler, SM-2, pace, points, problem-link parsing
+server/   Express 5 · Drizzle · Postgres/PGlite · better-auth
+  core/     env, auth, db, event bus, jobs, module contract
+  modules/  profile · tasks · planning · focus · platforms · roadmaps · repetition · groups · notify · progress
+web/      React 19 · Vite · Tailwind 4 · TanStack Query  (features/ mirrors the server modules)
 ```
 
-### The scheduling engine (`shared/src/scheduler`)
+Each server module declares its routes, jobs and event handlers, and modules react to each other through domain events (`server/src/core/events.ts`). Platforms, daily-work sources, repetition algorithms, notification channels and the scheduler are pluggable interfaces. See **[docs/EXTENDING.md](docs/EXTENDING.md)**.
 
-It is deterministic and greedy, behind a `Scheduler` interface so that a constraint solver such as OR-Tools can replace it later. No LLM is involved in placement.
+## Troubleshooting
 
-1. **Windows** are the weekly working hours, or a date override, minus recurring blocked ranges. Windows that cross midnight are supported and belong to the day they start. All calculations happen in the user's IANA timezone and are DST-safe (a 23-hour or 25-hour day really has 23 or 25 hours).
-2. **Free time** is windows minus busy time: fixed commitments plus preserved blocks (completed, in progress, locked, past). It is snapped to 5 minutes.
-3. **Ordering:** repeatedly take the highest-ranked task whose dependencies are resolved. Rank is priority plus deadline urgency, then earliest deadline, then indivisible before splittable, then creation order.
-4. **Placement:**
-   - Indivisible tasks take the earliest continuous slot of their full duration.
-   - Splittable tasks are cut into sessions within their min/max, and never leave a remainder shorter than the minimum session.
-   - Focus blocks keep at least the break length between them, and break blocks are inserted.
-   - Hard daily windows ("only 17:00–20:00"), earliest start and latest finish are hard constraints.
-   - The preferred time of day is soft, with a fallback and a warning.
-   - Daily caps and group budgets (used by playlist plans) are enforced.
-5. **Validation:** `validateSchedule` checks every hard constraint. It covers overlaps, busy collisions, working windows, indivisibility, session bounds, dependency order, bounds, spacing and caps. It runs on every generation before anything is persisted.
-6. **Reporting:** unplaced work comes back with a code, a reason ("Needs 50 uninterrupted minutes; the longest free gap is 35 min") and a suggestion. Deadline misses and overload are warnings.
-
-**Regeneration** runs in one transaction with the user's profile row locked, so concurrent requests cannot double-book. It:
-- marks past planned blocks as **missed** (never as complete)
-- keeps completed, running and locked blocks and fixed commitments
-- counts already-recorded work, so it is never rescheduled again
-- replaces only future, unlocked, planned blocks
-- reports what no longer fits
-
-Moving a block manually locks it.
-
-### Time, completion and verification are separate
-
-- **Focus sessions** store `startedAt`, pause records and `endedAt`. All durations are derived from timestamps, so a refresh or disconnect never corrupts them (`GET /api/focus-sessions/active` recovers a session). Background time counts by default; a setting makes the app auto-pause when the tab is hidden.
-- **Finishing a timer never completes a task.** The user records the outcome (still working / partial / complete).
-- **Task completions** are idempotent per task and occurrence, enforced by a partial unique index. Reopening voids a completion instead of deleting it. Each completion carries a verification status: `verified` (integration), `manual`, `evidence`, `pending`, `unavailable` or `failed`. A manual completion of an integration-checked task is `pending` until a successful sync verifies it. Provider failures never change a verification status.
-
-### Decisions made where the PRD was open
-
-- **Consistency score:** completed (partial = ½) divided by scheduled focus sessions that have already started in the period. Days with nothing scheduled are excluded. "Balanced" is 50% consistency + 30% completed tasks relative to the top member + 20% active days. Each leaderboard row carries a breakdown that explains it.
-- **Streaks:** a day is *active* if a task was completed or a focus block was done. It is *missed* if focus work was scheduled but nothing was done. Otherwise it is *neutral*, which neither extends nor breaks a streak. An unfinished today never breaks a streak.
-- **Privacy:** Circle members see only what you share. That covers completions of tasks in *shared goals or challenges* (by title), streak milestones, opt-in focus presence or session durations, and count-only leaderboard stats. Private task names, descriptions, schedules and connected accounts are never exposed. Non-members get 404 for every Circle resource.
-- **Recurring tasks** produce one occurrence per matching day. Dependencies between recurring tasks are ignored.
-- **Deleting a task** that has recorded history archives it instead.
-- **Notifications** are in-app only, deduplicated by key, and respect per-category settings. Email and push are not configured.
-- **Auth** uses better-auth: scrypt hashing, DB sessions, HTTP-only SameSite=Lax cookies and rate limits. Password-reset links are printed to the server log until an email provider is configured. As defence in depth against CSRF, every state-changing API request must carry `X-Requested-With: cadence`.
-
-## Integrations and their limitations
-
-| Integration | Status | Limitations |
-|---|---|---|
-| **LeetCode** | Works with a public username, no password. Two check modes: *N distinct problems* (optionally by difficulty) or *the Problem of the Day*. The daily-challenge queries were confirmed against the live site. The full end-to-end flow has been tested against mocked responses only. | LeetCode has **no official API**. The adapter uses the site's public GraphQL endpoint (`recentAcSubmissionList`, `activeDailyCodingChallengeQuestion`, `dailyCodingChallengeV2`), which can change or rate-limit without notice. Only the ~20 most recent accepted submissions are visible. Distinct problems are counted, so re-submissions don't count twice. POTD checks use LeetCode's UTC day. If POTD data can't be fetched, the result stays undecided and is never marked failed. Failures back off and never alter task status. |
-| **GitHub** | OAuth flow implemented; needs `GITHUB_CLIENT_ID/SECRET`. Not tested against live GitHub. | It requests no scopes, so only public activity is visible. The events API covers about 90 days / 300 events. Criteria: open or merge a PR, close an issue, or push commits in a given `owner/repo`. Disconnect deletes the token and attempts revocation. |
-| **YouTube playlists** | Needs `YOUTUBE_API_KEY`. Without it, manual lesson entry is offered. Tested against mocked responses only. | Private or deleted videos are skipped and counted. Playback **cannot** be verified, so video progress is self-reported and recorded as a manual completion. |
-
-Tokens are encrypted at rest with AES-256-GCM. Provider data is treated as untrusted input, and provider errors are isolated from core features.
-
-## Tests
-
-- `shared`: 33 tests. Scheduler cases from PRD §23: the PRD example day, overlapping commitments, too-short gaps, splitting, fragments, breaks, dependencies and cycles, deadlines, no time, date exceptions, overnight windows, DST spring-forward and fall-back, regeneration around completed/locked blocks, tasks that stop fitting, hard and preferred windows, multi-day budgets, determinism, and a randomized no-overlap property test. Also focus math, streaks, scores and interval math.
-- `server`: 18 API integration tests against a fresh in-memory Postgres with real auth and a controllable clock, covering:
-  - Workflows A–E end to end
-  - CSRF and auth checks
-  - authorization boundaries
-  - concurrent regeneration
-  - optimistic concurrency
-  - duplicate completions
-  - invitations: used-up, invalid and removed-member cases
-  - leaderboard opt-out
-  - private-data leakage checks on the feed and dashboard
-  - LeetCode verification, including duplicates, wrong difficulty, outage, rate limit, recovery and idempotency
-  - LeetCode Problem of the Day: wrong problem, right problem on the wrong UTC day, right problem on the right day
-  - playlist feasibility and the plan/apply equivalence
-  - YouTube-not-configured fallback
-
-## Known gaps and next steps
-
-- Drag-and-drop moves blocks within a day. Moving across days in the week view is done through the block's "Edit time".
-- Email delivery (password reset, digests) and browser push are not wired up.
-- The greedy engine is not globally optimal. The `Scheduler` interface is the seam for an OR-Tools CP-SAT implementation.
-- AI-assisted planning explanations (PRD phase 5) are not implemented.
+| Problem | Fix |
+|---|---|
+| Signed out after restarts | Set `BETTER_AUTH_SECRET`. |
+| Sign-in fails, app on port 5174 | Free port 5173 and restart `npm run dev`. |
+| PGlite `RuntimeError: Aborted()` | The local database was damaged by a hard kill: delete `server/.data/pglite` (erases local data). |
+| A LeetCode problem won't verify | Make the profile public, then press **Sync now**. |

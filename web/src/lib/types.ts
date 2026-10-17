@@ -1,4 +1,4 @@
-import type { Preferences, Recurrence, TimeRange, VerificationConfig } from "@cadence/shared";
+import type { FollowSettings, PointsConfig, Preferences, Recurrence, TimeRange, VerificationConfig } from "@cadence/shared";
 
 export interface Profile {
   userId: string;
@@ -13,9 +13,9 @@ export interface Profile {
 }
 
 export interface Me {
-  user: { id: string; email: string; name: string };
+  user: { id: string; email: string; name: string; username: string | null };
   profile: Profile;
-  memberships: Array<{ circleId: string; role: string }>;
+  memberships: Array<{ groupId: string; role: string }>;
   connections: Array<{ provider: string; status: string }>;
   streak: { current: number; longest: number };
 }
@@ -25,7 +25,6 @@ export interface Task {
   title: string;
   description: string | null;
   goalId: string | null;
-  challengeId: string | null;
   estimatedMinutes: number;
   priority: number;
   dueAt: string | null;
@@ -59,8 +58,6 @@ export interface Goal {
   targetQuantity: number | null;
   targetUnit: string | null;
   priority: number;
-  visibility: "private" | "circle";
-  circleId: string | null;
   progressMethod: "tasks" | "quantity" | "minutes";
   status: string;
   recurrence: Recurrence;
@@ -115,6 +112,8 @@ export interface ScheduleView {
   blocks: Block[];
   commitments: Array<{ commitmentId: string; title: string; start: string; end: string; date: string }>;
   windows: Array<{ day: string; start: string; end: string }>;
+  /** Day-plan items (problems, revisions, group tasks): open all day unless `timed`. */
+  dayItems: Array<{ taskId: string; day: string; title: string; category: string; source: string; label: string | null; status: "pending" | "done" | "skipped"; timed: boolean }>;
   unscheduled: UnscheduledItem[];
   lastReport: ScheduleReport | null;
 }
@@ -160,41 +159,79 @@ export interface PublicUser {
   bio: string | null;
 }
 
-export interface Circle {
+export interface Group {
   id: string;
   name: string;
   description: string | null;
   ownerId: string;
-  settings: { rankingMode: string };
+  points: PointsConfig;
   role: string;
   memberCount: number;
+  myRank: number | null;
+  myPoints: number;
 }
 
-export interface Challenge {
+export interface GroupMember extends PublicUser {
+  role: "owner" | "admin" | "member";
+  joinedAt: string;
+  streak: number | null;
+}
+
+export interface GroupOverview {
+  group: Omit<Group, "role" | "memberCount" | "myRank" | "myPoints"> & { myRole: "owner" | "admin" | "member" };
+  members: GroupMember[];
+}
+
+export interface LeaderboardView {
+  period: "week" | "month" | "all";
+  rows: Array<{ rank: number | null; user: PublicUser; points: number; completions: number; firsts: number; solved: number }>;
+  hiddenCount: number;
+  rules: string;
+}
+
+export interface GroupTaskToday {
   id: string;
-  circleId: string;
+  kind: "problem" | "custom" | "potd";
   title: string;
   description: string | null;
-  startDate: string;
-  endDate: string;
-  metric: "completions" | "focus_minutes" | "verified";
-  individualTarget: number | null;
-  collectiveTarget: number | null;
-  status: "upcoming" | "active" | "completed";
-  joined: boolean;
-  participantCount?: number;
-  myProgress?: number;
-  collective?: number | { value: number; target: number | null; ratio: number | null };
+  category: string;
+  url: string | null;
+  difficulty: string | null;
+  repeat: "once" | "daily" | "weekdays";
+  dueTime: string;
+  dueAt: string;
+  points: number;
+  estMinutes: number;
+  doneCount: number;
+  memberCount: number;
+  members: Array<{ user: PublicUser; done: boolean; completedAt: string | null; rank: number | null; points: number | null; verifiedBy: "submission" | "self" | null }>;
 }
 
-export interface Activity {
+export interface SharedRoadmap {
   id: string;
-  type: string;
-  data: Record<string, unknown>;
-  createdAt: string;
-  actor: PublicUser | null;
-  reactions: Array<{ emoji: string; count: number; reacted: boolean }>;
-  comments: Array<{ id: string; body: string; createdAt: string; author: PublicUser | null }>;
+  title: string;
+  description: string | null;
+  archived: boolean;
+  owner: PublicUser | null;
+  isOwner: boolean;
+  total: number;
+  memberCount: number;
+  followers: Array<{ user: PublicUser | null; active: boolean; done: number; doneThisWeek: number }>;
+  iFollow: boolean;
+  isGroupRoadmap: boolean;
+  almostGroup: boolean;
+}
+
+/** A coding platform the server can verify against (from GET /integrations). */
+export interface Platform {
+  provider: string;
+  label: string;
+  description: string;
+  handlePattern: string;
+  limitations: string[];
+  available: boolean;
+  unavailableReason: string | null;
+  connection: { status: string; externalAccountId: string; lastSyncAt: string | null; lastError: string | null; nextSyncAfter: string | null } | null;
 }
 
 export interface Notification {
@@ -203,4 +240,90 @@ export interface Notification {
   payload: { message?: string; link?: string; [k: string]: unknown };
   readAt: string | null;
   createdAt: string;
+}
+
+export type Category = "leetcode" | "codeforces" | "codechef" | "other";
+
+export interface FollowInfo {
+  settings: FollowSettings;
+  active: boolean;
+  startedAt: string;
+  viaGroupId: string | null;
+}
+
+export interface RoadmapSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  ownerId: string;
+  isOwner: boolean;
+  archived: boolean;
+  total: number;
+  done: number;
+  skipped: number;
+  remaining: number;
+  followers: number;
+  follow: FollowInfo | null;
+  projectedFinish: string | null;
+}
+
+export interface RoadmapItem {
+  id: string;
+  roadmapId: string;
+  position: number;
+  title: string;
+  url: string | null;
+  category: Category;
+  platform: string | null;
+  problemKey: string | null;
+  difficulty: string | null;
+  estMinutes: number;
+  section: string | null;
+  status: "queued" | "active" | "done" | "skipped";
+  doneAt: string | null;
+  verifiedBy: "submission" | "self" | null;
+}
+
+export interface RoadmapDetail extends RoadmapSummary {
+  items: RoadmapItem[];
+}
+
+export interface ReviewCard {
+  id: string;
+  title: string;
+  url: string | null;
+  category: Category;
+  platform: string | null;
+  dueDate: string;
+  lastReviewedOn: string;
+  reps: number;
+  baseInterval: number;
+  multiplier: number;
+  roadmap: { id: string; title: string } | null;
+}
+
+export interface TodayItem {
+  taskId: string;
+  title: string;
+  url: string | null;
+  category: string;
+  source: "manual" | "roadmap" | "review" | "group" | string;
+  label: string | null;
+  estMinutes: number;
+  status: "pending" | "done" | "skipped";
+  check: "submission" | "self";
+  verifiedBy: "submission" | "self" | null;
+  completedAt: string | null;
+  block: { startAt: string; endAt: string; status: string } | null;
+  review: { cardId: string; quality: number | null } | null;
+  recurring: boolean;
+  swappable: boolean;
+  dueAt: string | null;
+}
+
+export interface TodayView {
+  day: string;
+  items: TodayItem[];
+  summary: { total: number; done: number; minutesPlanned: number };
+  deferred: number;
 }

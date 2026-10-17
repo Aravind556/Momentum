@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import { ApiError } from "./lib/api";
 import { ToastProvider } from "./components/ui";
 import { App } from "./App";
+import { registerServiceWorker } from "./lib/push";
 import "./index.css";
 
 try {
@@ -13,6 +14,8 @@ try {
 } catch {
   /* storage unavailable */
 }
+
+registerServiceWorker();
 
 const queryClient = new QueryClient({
   defaultOptions: {

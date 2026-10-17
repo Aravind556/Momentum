@@ -1,0 +1,1 @@
+ALTER TABLE "groups" ADD COLUMN "points" jsonb DEFAULT '{"easy":10,"medium":20,"hard":30,"other":10,"bonus":[50,30,10]}'::jsonb NOT NULL;
