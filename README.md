@@ -31,7 +31,7 @@ Open **http://localhost:5173** and either:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-Don't put `NODE_ENV=production` or an `https://` `APP_URL` in the `.env` you use for `npm run dev`. Those settings are only for public hosting (below), and sign-in breaks locally if they're set.
+Don't put `NODE_ENV=production` or an `https://` `APP_URL` in the `.env` you use for `npm run dev`. Those settings are for production (below), and sign-in breaks locally if they're set.
 
 ### Stopping, restarting and resetting
 
@@ -82,42 +82,12 @@ Notes on how the check behaves:
 2. Run `npm ci && npm run build && npm start`. Migrations run on boot. The API serves the built web app from the same origin, so cookies stay first-party.
 3. Put it behind HTTPS. Secure cookies are enabled automatically when `APP_URL` is `https://`.
 
-### Hosting on your own PC for friends (DuckDNS + Caddy)
-
-This setup was prepared and works up to your router. **It was never reachable from outside**: the router had no port forward for 443, and the internet provider may use CGNAT. If you try again:
-
-1. Create a subdomain at https://www.duckdns.org and point it at your public IP:
-   `curl "https://www.duckdns.org/update?domains=<name>&token=<token>&ip=<public-ip>"`
-2. Put the production values in `.env` (example: `.env.duckdns`, which is gitignored and holds generated secrets).
-3. Download Caddy with the DuckDNS plugin into `.tools/` (gitignored):
-   `curl -L -o .tools/caddy.exe "https://caddyserver.com/api/download?os=windows&arch=amd64&p=github.com%2Fcaddy-dns%2Fduckdns"`
-   Then create `.tools/Caddyfile`:
-   ```
-   {
-   	http_port 8089
-   	auto_https disable_redirects
-   }
-
-   <name>.duckdns.org {
-   	tls {
-   		dns duckdns {env.DUCKDNS_TOKEN}
-   	}
-   	reverse_proxy 127.0.0.1:3001
-   }
-   ```
-4. Run `npm run build`, then `npm start`. In a second terminal run `DUCKDNS_TOKEN=<token> .tools/caddy.exe run --config .tools/Caddyfile`. Allow caddy.exe through Windows Firewall when prompted.
-5. On the router, forward TCP **443** to this PC's LAN IP on port 443. Test from outside your network, e.g. from a phone on mobile data.
-6. If the router's WAN IP differs from your public IP (a `100.64.x`, `10.x` or `192.168.x` address), your provider uses **CGNAT**, and inbound port forwarding cannot work. Use a tunnel such as Cloudflare Tunnel instead.
-
-While hosted, the app is only available when your PC is on and both processes are running, and anyone with the link can create an account.
-
 ### Troubleshooting
 
 | Problem | Fix |
 |---|---|
 | Web app starts on **5174** instead of 5173, and sign-in fails | Another process holds port 5173 (often an old dev server). Stop it, then restart `npm run dev`. Auth only trusts the origin in `APP_URL` (default `http://localhost:5173`). |
 | Signed out after every restart | Set `BETTER_AUTH_SECRET` in `.env`. |
-| Sign-in fails locally after hosting setup | `.env` contains production values (`NODE_ENV=production`, `https://` `APP_URL`). Move it aside (e.g. to `.env.duckdns`) for local dev. |
 | Server crashes on start with `RuntimeError: Aborted()` from PGlite | The embedded database was damaged, usually by a hard kill. Delete the data folder (`server/.data/pglite`, or the `PGLITE_DIR` you set; **this erases its data**) and start again. Stop with `Ctrl+C` to avoid it. |
 | `/` shows "Cannot GET /" with `npm start` | Rebuild with `npm run build` (needs the Express 5 `/{*splat}` route in `server/src/app.ts`), and make sure no old server process is still holding port 3001. |
 | Password reset email never arrives | No email provider is configured. The reset link is printed in the server terminal. |

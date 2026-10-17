@@ -4,5 +4,3 @@ dist/
 .env
 *.log
 coverage/
-.tools/
-.env.duckdns
