@@ -1,3 +1,4 @@
+import type { TaskReminder } from "@momentum/shared";
 import type { FollowSettings, PointsConfig, Preferences, Recurrence, TimeRange, VerificationConfig } from "@momentum/shared";
 
 export interface Profile {
@@ -41,6 +42,7 @@ export interface Task {
   verification: VerificationConfig;
   completionCriteria: string | null;
   resourceUrl: string | null;
+  reminder: TaskReminder | null;
   status: string;
   version: number;
   dependsOn: string[];
@@ -319,6 +321,7 @@ export interface TodayItem {
   recurring: boolean;
   swappable: boolean;
   dueAt: string | null;
+  reminder: TaskReminder | null;
 }
 
 export interface TodayView {

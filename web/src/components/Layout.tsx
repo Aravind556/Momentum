@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CircleDot,
   Home,
+  ListChecks,
   Map as MapIcon,
   LogOut,
   MoreHorizontal,
@@ -25,14 +26,14 @@ import { cx, IconButton } from "./ui";
 
 const NAV = [
   { to: "/", label: "Today", icon: Home, end: true },
-  { to: "/planner", label: "Planner", icon: CalendarDays },
+  { to: "/tasks", label: "Tasks", icon: ListChecks },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/roadmaps", label: "Roadmaps", icon: MapIcon },
   { to: "/groups", label: "Groups", icon: Users },
   { to: "/progress", label: "Progress", icon: BarChart3 },
-  { to: "/focus", label: "Focus", icon: Timer },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
-const MOBILE_PRIMARY = ["/", "/planner", "/roadmaps", "/groups"];
+const MOBILE_PRIMARY = ["/", "/tasks", "/calendar", "/roadmaps"];
 
 export function Layout() {
   const me = useMe();
@@ -94,7 +95,7 @@ export function Layout() {
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-line bg-bg/90 px-4 backdrop-blur md:justify-end">
+        <header className="sticky top-0 z-30 flex h-[calc(3rem+env(safe-area-inset-top))] items-center justify-between border-b border-line bg-bg/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur md:justify-end">
           <span className="flex items-center gap-2 md:hidden">
             <CircleDot className="size-5 text-accent" aria-hidden />
             <span className="font-semibold">Momentum</span>
@@ -108,14 +109,14 @@ export function Layout() {
             <NotificationsBell />
           </div>
         </header>
-        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 md:px-8 md:pb-10">
+        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-5 md:px-8 md:pb-10">
           <PlanUpdates />
           <Outlet />
         </main>
       </div>
 
       {/* Mobile bottom navigation */}
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface md:hidden">
+      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
         {NAV.filter((n) => MOBILE_PRIMARY.includes(n.to)).map((n) => (
           <NavLink
             key={n.to}
@@ -133,19 +134,27 @@ export function Layout() {
         </button>
       </nav>
       {moreOpen && (
-        <div className="fixed inset-x-0 bottom-14 z-40 border-t border-line bg-surface p-2 md:hidden">
-          <div className="grid grid-cols-3 gap-1">
+        <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-40 rounded-t-2xl border-t border-line bg-surface p-2 shadow-2xl md:hidden">
+          <nav aria-label="More pages" className="flex flex-col">
             {NAV.filter((n) => !MOBILE_PRIMARY.includes(n.to)).map((n) => (
-              <NavLink key={n.to} to={n.to} onClick={() => setMoreOpen(false)} className="flex flex-col items-center gap-1 rounded-lg px-2 py-3 text-xs text-muted hover:bg-surface-2">
+              <NavLink
+                key={n.to}
+                to={n.to}
+                onClick={() => setMoreOpen(false)}
+                className={({ isActive }) =>
+                  cx("flex h-12 items-center gap-3 rounded-lg px-3 text-[15px] font-medium", isActive ? "bg-surface-3 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")
+                }
+              >
                 <n.icon className="size-5" aria-hidden />
                 {n.label}
               </NavLink>
             ))}
-            <button onClick={signOut} className="flex flex-col items-center gap-1 rounded-lg px-2 py-3 text-xs text-muted hover:bg-surface-2">
+            <div className="my-1 border-t border-line" aria-hidden />
+            <button onClick={signOut} className="flex h-12 items-center gap-3 rounded-lg px-3 text-left text-[15px] font-medium text-muted hover:bg-surface-2 hover:text-fg">
               <LogOut className="size-5" aria-hidden />
               Sign out
             </button>
-          </div>
+          </nav>
         </div>
       )}
     </div>

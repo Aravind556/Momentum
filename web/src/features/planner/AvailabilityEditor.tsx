@@ -99,7 +99,7 @@ export function AvailabilityEditor() {
                       aria-pressed={on}
                       aria-label={dn}
                       onClick={() => setBlocked(bi, { weekdays: on ? b.weekdays.filter((w) => w !== di + 1) : [...b.weekdays, di + 1] })}
-                      className={cx("size-7 rounded-md text-[11px] font-medium", on ? "bg-accent-soft text-accent" : "text-faint hover:bg-surface-2")}
+                      className={cx("size-9 rounded-md text-sm font-medium desk:size-7 desk:text-[11px]", on ? "bg-accent-soft text-accent" : "text-faint hover:bg-surface-2")}
                     >
                       {dn[0]}
                     </button>

@@ -1,5 +1,5 @@
 import { and, asc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
-import { instantToLocalDate, localDayBounds, localToInstant, parseHHMM, preferencesSchema } from "@momentum/shared";
+import { instantToLocalDate, localDayBounds, localToInstant, parseHHMM, preferencesSchema, type TaskReminder } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { integrationConnections, profiles, reviews, scheduleBlocks, taskCompletions, tasks } from "../../core/db/schema.js";
 import { badRequest, notFound } from "../../core/http.js";
@@ -38,6 +38,8 @@ export interface TodayItem {
   swappable: boolean;
   /** "Due by" time (group tasks, own deadlines). Day-plan items are otherwise open all day. */
   dueAt: string | null;
+  /** This task's own reminder, if any (sent only while it's still open). */
+  reminder: TaskReminder | null;
 }
 
 /**
@@ -108,6 +110,7 @@ export async function getToday(s: Services, userId: string) {
       recurring,
       swappable: t.source !== "manual" && !dailySources().find((x) => x.key === t.source)?.fixed && !!t.category,
       dueAt: t.dueAt && t.dueAt.getTime() <= bounds.end ? t.dueAt.toISOString() : null,
+      reminder: t.reminder ?? null,
     };
   });
   // Items with a time first (in time order), then the all-day ones.

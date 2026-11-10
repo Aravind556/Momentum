@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
-import type { TaskInput, TaskStatus } from "@momentum/shared";
+import type { TaskInput, TaskReminder, TaskStatus } from "@momentum/shared";
+import type { Services } from "../../core/context.js";
 import type { DB, Tx } from "../../core/db/index.js";
 import { focusSessions, goals, scheduleBlocks, taskCompletions, taskDependencies, tasks } from "../../core/db/schema.js";
 import { badRequest, conflict, notFound } from "../../core/http.js";
@@ -35,6 +36,7 @@ function toRow(input: TaskInput) {
     verification: input.verification,
     completionCriteria: input.completionCriteria ?? null,
     resourceUrl: input.resourceUrl ?? null,
+    reminder: input.reminder ?? null,
   };
 }
 
@@ -223,4 +225,10 @@ export async function listTasks(db: DB, userId: string, opts: { status?: string;
     workedMinutes: worked.get(t.id) ?? 0,
     lastCompletion: latest.get(t.id) ?? null,
   }));
+}
+
+export async function setReminder(s: Services, userId: string, taskId: string, reminder: TaskReminder | null) {
+  await getOwnedTask(s.db, userId, taskId);
+  const [row] = await s.db.update(tasks).set({ reminder }).where(eq(tasks.id, taskId)).returning({ id: tasks.id, reminder: tasks.reminder });
+  return row!;
 }

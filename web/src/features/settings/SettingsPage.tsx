@@ -25,7 +25,6 @@ export function SettingsPage() {
       <PlatformConnections />
       <PlanSettings />
       <PreferenceSettings />
-      <SecuritySettings />
     </div>
   );
 }
@@ -51,7 +50,7 @@ function ProfileSettings() {
   })();
   if (!p) return <Spinner />;
   return (
-    <Card collapsible title="Profile" actions={<Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>Save</Button>}>
+    <Card collapsible title="Account" actions={<Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>Save</Button>}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Display name">{(id) => <Input id={id} value={f.displayName} onChange={(e) => setF({ ...f, displayName: e.target.value })} />}</Field>
         <Field label="Username" hint="3–24 letters, numbers or underscores">{(id) => <Input id={id} value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} />}</Field>
@@ -65,6 +64,10 @@ function ProfileSettings() {
           )}
         </Field>
         <Field label="Bio" className="sm:col-span-2">{(id) => <Textarea id={id} maxLength={280} value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} />}</Field>
+      </div>
+      <div className="mt-5 border-t border-line pt-5">
+        <h3 className="mb-3 text-[13px] font-semibold">Password & devices</h3>
+        <SecuritySettings />
       </div>
     </Card>
   );
@@ -87,7 +90,7 @@ function PlanSettings() {
   const rem = prefs.reminders;
   return (
     <>
-      <Card collapsible title="Daily plan">
+      <Card collapsible title="Planning & focus">
         <div className="space-y-5">
           <Toggle
             checked={plan.autoPlan}
@@ -119,9 +122,12 @@ function PlanSettings() {
               )}
             </Field>
           </div>
+          <div className="border-t border-line pt-5">
+            <FocusSettings />
+          </div>
         </div>
       </Card>
-      <Card collapsible title="Reminders">
+      <Card collapsible title="Notifications">
         <div className="space-y-5">
           <BrowserNotifications />
           <Toggle
@@ -180,6 +186,9 @@ function PlanSettings() {
             onChange={(v) => save.mutate({ reminders: { ...rem, groupDueSoon: v } })}
             label="Notify me when a group task is due within 2 hours"
           />
+          <div className="border-t border-line pt-5">
+            <InAppNotifications />
+          </div>
         </div>
       </Card>
     </>
@@ -243,10 +252,65 @@ function BrowserNotifications() {
   );
 }
 
-function PreferenceSettings() {
+/** Shared by the small preference panels below: the saved preferences and a saver. */
+function usePrefs() {
   const me = useMe();
-  const prefs = me.data?.profile.preferences;
   const save = useAction((patch: Partial<Preferences>) => api.patch("/me", { preferences: patch }), { invalidate: [["me"]], success: "Saved" });
+  return { prefs: me.data?.profile.preferences, save };
+}
+
+function FocusSettings() {
+  const { prefs, save } = usePrefs();
+  if (!prefs) return null;
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end gap-4">
+        <Field label="Focus timer">
+          {() => (
+            <Segmented
+              label="Focus preset"
+              value={prefs.focusMinutes === 25 && prefs.breakMinutes === 5 ? "25" : prefs.focusMinutes === 50 && prefs.breakMinutes === 10 ? "50" : "custom"}
+              onChange={(v) => v !== "custom" && save.mutate(v === "25" ? { focusMinutes: 25, breakMinutes: 5 } : { focusMinutes: 50, breakMinutes: 10 })}
+              options={[
+                { value: "25", label: "25 / 5" },
+                { value: "50", label: "50 / 10" },
+                { value: "custom", label: "Custom" },
+              ]}
+            />
+          )}
+        </Field>
+        <Field label="Session (min)">
+          {(id) => <Input id={id} type="number" min={5} max={240} step={5} className="w-24" defaultValue={prefs.focusMinutes} onBlur={(e) => Number(e.target.value) !== prefs.focusMinutes && save.mutate({ focusMinutes: Number(e.target.value) })} />}
+        </Field>
+        <Field label="Break (min)">
+          {(id) => <Input id={id} type="number" min={0} max={60} step={5} className="w-24" defaultValue={prefs.breakMinutes} onBlur={(e) => Number(e.target.value) !== prefs.breakMinutes && save.mutate({ breakMinutes: Number(e.target.value) })} />}
+        </Field>
+      </div>
+      <Toggle
+        checked={prefs.countBackgroundTime}
+        onChange={(v) => save.mutate({ countBackgroundTime: v })}
+        label="Keep counting focus time when the tab is in the background"
+        description="When off, a running session pauses when you switch away."
+      />
+    </div>
+  );
+}
+
+function InAppNotifications() {
+  const { prefs, save } = usePrefs();
+  if (!prefs) return null;
+  return (
+    <div className="space-y-4">
+      <p className="text-[13px] font-semibold">In the app (bell icon)</p>
+      {NOTIFICATION_CATEGORIES.map((c) => (
+        <Toggle key={c} checked={prefs.notifications[c] !== false} onChange={(v) => save.mutate({ notifications: { ...prefs.notifications, [c]: v } })} label={NOTIF_LABELS[c] ?? c} />
+      ))}
+    </div>
+  );
+}
+
+function PreferenceSettings() {
+  const { prefs, save } = usePrefs();
   const [theme, setTheme] = useState<"system" | "dark" | "light">(() => {
     try {
       return (localStorage.getItem("momentum-theme") as "dark" | "light" | null) ?? "system";
@@ -267,67 +331,29 @@ function PreferenceSettings() {
   };
   if (!prefs) return null;
   return (
-    <>
-      <Card collapsible title="Scheduling & focus">
-        <div className="space-y-5">
-          <div className="flex flex-wrap items-end gap-4">
-            <Field label="Focus preset">
-              {() => (
-                <Segmented
-                  label="Focus preset"
-                  value={prefs.focusMinutes === 25 && prefs.breakMinutes === 5 ? "25" : prefs.focusMinutes === 50 && prefs.breakMinutes === 10 ? "50" : "custom"}
-                  onChange={(v) => v !== "custom" && save.mutate(v === "25" ? { focusMinutes: 25, breakMinutes: 5 } : { focusMinutes: 50, breakMinutes: 10 })}
-                  options={[
-                    { value: "25", label: "25 / 5" },
-                    { value: "50", label: "50 / 10" },
-                    { value: "custom", label: "Custom" },
-                  ]}
-                />
-              )}
-            </Field>
-            <Field label="Default session (min)">
-              {(id) => <Input id={id} type="number" min={5} max={240} step={5} className="w-28" defaultValue={prefs.focusMinutes} onBlur={(e) => Number(e.target.value) !== prefs.focusMinutes && save.mutate({ focusMinutes: Number(e.target.value) })} />}
-            </Field>
-            <Field label="Break between sessions (min)">
-              {(id) => <Input id={id} type="number" min={0} max={60} step={5} className="w-28" defaultValue={prefs.breakMinutes} onBlur={(e) => Number(e.target.value) !== prefs.breakMinutes && save.mutate({ breakMinutes: Number(e.target.value) })} />}
-            </Field>
-          </div>
-          <Toggle
-            checked={prefs.countBackgroundTime}
-            onChange={(v) => save.mutate({ countBackgroundTime: v })}
-            label="Count time while the app is in the background"
-            description="When off, a running session pauses automatically when you switch away from the tab."
-          />
-        </div>
-      </Card>
-      <Card collapsible title="Privacy">
-        <div className="space-y-4">
+    <Card collapsible title="Privacy & appearance">
+      <div className="space-y-4">
+        <Field label="Theme">
+          {() => (
+            <Segmented
+              label="Theme"
+              value={theme}
+              onChange={applyTheme}
+              options={[
+                { value: "system", label: "System" },
+                { value: "dark", label: "Dark" },
+                { value: "light", label: "Light" },
+              ]}
+            />
+          )}
+        </Field>
+        <div className="space-y-4 border-t border-line pt-4">
           <p className="text-xs text-muted">Group members never see your private task names, descriptions or schedule.</p>
           <Toggle checked={prefs.privacy.shareStreaks} onChange={(v) => save.mutate({ privacy: { ...prefs.privacy, shareStreaks: v } })} label="Share streak and streak milestones" />
           <Toggle checked={prefs.privacy.showOnLeaderboard} onChange={(v) => save.mutate({ privacy: { ...prefs.privacy, showOnLeaderboard: v } })} label="Appear on group leaderboards" description="Your points, completions and number of problems solved." />
         </div>
-      </Card>
-      <Card collapsible title="Notifications">
-        <div className="space-y-4">
-          {NOTIFICATION_CATEGORIES.map((c) => (
-            <Toggle key={c} checked={prefs.notifications[c] !== false} onChange={(v) => save.mutate({ notifications: { ...prefs.notifications, [c]: v } })} label={NOTIF_LABELS[c] ?? c} />
-          ))}
-          <p className="text-xs text-faint">These are in-app notifications. Email reminders are set under “Reminders”.</p>
-        </div>
-      </Card>
-      <Card collapsible title="Appearance">
-        <Segmented
-          label="Theme"
-          value={theme}
-          onChange={applyTheme}
-          options={[
-            { value: "system", label: "System" },
-            { value: "dark", label: "Dark" },
-            { value: "light", label: "Light" },
-          ]}
-        />
-      </Card>
-    </>
+      </div>
+    </Card>
   );
 }
 
@@ -348,7 +374,7 @@ function SecuritySettings() {
     }
   };
   return (
-    <Card collapsible title="Security">
+    <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <Field label="Current password">{(id) => <Input id={id} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />}</Field>
         <Field label="New password">{(id) => <Input id={id} type="password" autoComplete="new-password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} />}</Field>
@@ -356,17 +382,16 @@ function SecuritySettings() {
           Change password
         </Button>
       </div>
-      <div className="mt-4 border-t border-line pt-4">
-        <Button
-          variant="ghost"
-          onClick={async () => {
-            await authClient.revokeOtherSessions();
-            toast("Signed out of all other devices", "ok");
-          }}
-        >
-          Sign out other devices
-        </Button>
-      </div>
-    </Card>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={async () => {
+          await authClient.revokeOtherSessions();
+          toast("Signed out of all other devices", "ok");
+        }}
+      >
+        Sign out other devices
+      </Button>
+    </div>
   );
 }

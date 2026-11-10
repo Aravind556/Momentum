@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { parseProblemUrl, PRIORITY_LABELS, taskInputSchema, type TaskInput } from "@momentum/shared";
 import { api, ApiError } from "../../lib/api";
@@ -91,9 +92,17 @@ function TaskForm({ task, defaults, onDone }: { task: Task | null; defaults?: Pa
     recurrenceType: task?.recurrence.type ?? "none",
     recurrenceDays: task?.recurrence.weekdays ?? [],
     ...checkFromTask(task),
+    // One link field: a problem link to verify against, or any resource (article, doc, video).
+    problemUrl: task?.resourceUrl || checkFromTask(task).problemUrl,
+    reminderAt: task?.reminder?.type === "at" ? isoToLocalInput(task.reminder.at, tz) : "",
+    reminderTime: task?.reminder?.type === "daily" ? task.reminder.time : "",
+    // No longer edited in the form (nothing checks it); kept as-is when saving.
     completionCriteria: task?.completionCriteria ?? "",
-    resourceUrl: task?.resourceUrl ?? "",
   });
+  const hasAdvanced =
+    !!task &&
+    (!!task.description || !!task.goalId || task.priority !== 2 || task.splittable || !!task.preferredTime || !!task.timeWindow || !!task.earliestStartAt || !!task.latestFinishAt || !!task.maxMinutesPerDay || (task.dependsOn?.length ?? 0) > 0);
+  const [more, setMore] = useState(hasAdvanced);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((cur) => ({ ...cur, [k]: v }));
   const num = (v: string) => (v === "" ? null : Number(v));
@@ -124,7 +133,15 @@ function TaskForm({ task, defaults, onDone }: { task: Task | null; defaults?: Pa
       recurrence: f.recurrenceType === "weekly" ? { type: "weekly", weekdays: f.recurrenceDays } : { type: f.recurrenceType },
       verification: verificationFromCheck(f),
       completionCriteria: f.completionCriteria || null,
-      resourceUrl: f.resourceUrl || (f.check === "problem" && f.problemUrl) || null,
+      resourceUrl: f.problemUrl.trim() || null,
+      reminder:
+        f.recurrenceType !== "none"
+          ? f.reminderTime
+            ? { type: "daily", time: f.reminderTime }
+            : null
+          : f.reminderAt
+            ? { type: "at", at: localInputToIso(f.reminderAt, tz) }
+            : null,
     };
     const parsed = taskInputSchema.safeParse(body);
     if (!parsed.success) {
@@ -142,6 +159,16 @@ function TaskForm({ task, defaults, onDone }: { task: Task | null; defaults?: Pa
   };
 
   const otherTasks = (tasks.data ?? []).filter((t) => t.id !== task?.id && t.status !== "completed");
+  const linked = f.problemUrl ? parseProblemUrl(f.problemUrl) : null;
+  const verifiable = !!linked && (linked.category === "leetcode" || linked.category === "codeforces");
+  const setLink = (v: string) =>
+    setF((cur) => {
+      const p = parseProblemUrl(v);
+      const ok = !!p && (p.category === "leetcode" || p.category === "codeforces");
+      // A pasted problem link switches to automatic checking; removing it switches back.
+      const check: Check = ok && cur.check === "none" ? "problem" : !ok && cur.check === "problem" ? "none" : cur.check;
+      return { ...cur, problemUrl: v, check };
+    });
 
   return (
     <form
@@ -152,191 +179,227 @@ function TaskForm({ task, defaults, onDone }: { task: Task | null; defaults?: Pa
       className="space-y-5"
     >
       <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
-        <Field label="Title" error={errors.title}>
-          {(id) => <Input id={id} autoFocus value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="Solve 2 LeetCode Medium problems" />}
+        <Field label="What do you need to do?" error={errors.title}>
+          {(id) => <Input id={id} autoFocus value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="OS assignment 3" />}
         </Field>
-        <Field label="Estimate (min)" error={errors.estimatedMinutes}>
+        <Field label="Time needed (min)" error={errors.estimatedMinutes}>
           {(id) => <Input id={id} type="number" min={5} max={1440} step={5} value={f.estimatedMinutes} onChange={(e) => set("estimatedMinutes", Number(e.target.value))} />}
         </Field>
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Goal">
-          {(id) => (
-            <Select id={id} value={f.goalId} onChange={(e) => set("goalId", e.target.value)}>
-              <option value="">No goal</option>
-              {goals.data?.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.title}
-                </option>
-              ))}
-            </Select>
-          )}
-        </Field>
-        <Field label="Priority">
-          {(id) => (
-            <Select id={id} value={f.priority} onChange={(e) => set("priority", Number(e.target.value))}>
-              {[4, 3, 2, 1].map((p) => (
-                <option key={p} value={p}>
-                  {PRIORITY_LABELS[p]}
-                </option>
-              ))}
-            </Select>
-          )}
-        </Field>
-        <Field label="Deadline (soft)" error={errors.dueAt}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Due by (optional)" error={errors.dueAt}>
           {(id) => <Input id={id} type="datetime-local" value={f.dueAt} onChange={(e) => set("dueAt", e.target.value)} />}
         </Field>
-      </div>
-
-      <fieldset className="space-y-4 rounded-lg border border-line p-4">
-        <legend className="px-1 text-[13px] font-semibold">Scheduling rules</legend>
-        <Toggle
-          checked={f.splittable}
-          onChange={(v) => set("splittable", v)}
-          label="Can be split into multiple sessions"
-          description={f.splittable ? "Progress carries over between sessions and days." : "Indivisible: needs one uninterrupted block of the full estimate."}
-        />
-        {f.splittable && (
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Session length" hint="Default from settings">
-              {(id) => <Input id={id} type="number" min={5} step={5} value={f.preferredSessionMinutes ?? ""} onChange={(e) => set("preferredSessionMinutes", num(e.target.value))} />}
-            </Field>
-            <Field label="Min session" error={errors.minSessionMinutes}>
-              {(id) => <Input id={id} type="number" min={5} step={5} value={f.minSessionMinutes ?? ""} onChange={(e) => set("minSessionMinutes", num(e.target.value))} />}
-            </Field>
-            <Field label="Max session" error={errors.maxSessionMinutes}>
-              {(id) => <Input id={id} type="number" min={5} step={5} value={f.maxSessionMinutes ?? ""} onChange={(e) => set("maxSessionMinutes", num(e.target.value))} />}
-            </Field>
-          </div>
-        )}
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Only between" hint="Hard daily window">
-            {(id) => (
-              <div className="flex items-center gap-1.5">
-                <Input id={id} type="time" value={f.windowStart} onChange={(e) => set("windowStart", e.target.value)} aria-label="Window start" />
-                <span className="text-faint">–</span>
-                <Input type="time" value={f.windowEnd} onChange={(e) => set("windowEnd", e.target.value)} aria-label="Window end" />
-              </div>
-            )}
-          </Field>
-          <Field label="Preferred time" hint="Soft preference">
-            {(id) => (
-              <Select id={id} value={f.preferredTime} onChange={(e) => set("preferredTime", e.target.value as typeof f.preferredTime)}>
-                <option value="">Any time</option>
-                <option value="morning">Morning</option>
-                <option value="afternoon">Afternoon</option>
-                <option value="evening">Evening</option>
-              </Select>
-            )}
-          </Field>
-          <Field label="Max minutes per day">
-            {(id) => <Input id={id} type="number" min={5} step={5} value={f.maxMinutesPerDay ?? ""} onChange={(e) => set("maxMinutesPerDay", num(e.target.value))} />}
-          </Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Earliest start">{(id) => <Input id={id} type="datetime-local" value={f.earliestStartAt} onChange={(e) => set("earliestStartAt", e.target.value)} />}</Field>
-          <Field label="Latest finish (hard)">{(id) => <Input id={id} type="datetime-local" value={f.latestFinishAt} onChange={(e) => set("latestFinishAt", e.target.value)} />}</Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Repeats">
-            {(id) => (
-              <Select id={id} value={f.recurrenceType} onChange={(e) => set("recurrenceType", e.target.value as typeof f.recurrenceType)}>
-                <option value="none">Does not repeat</option>
-                <option value="daily">Every day</option>
-                <option value="weekdays">Weekdays</option>
-                <option value="weekly">Specific days</option>
-              </Select>
-            )}
-          </Field>
-          {f.recurrenceType === "weekly" && (
-            <fieldset>
-              <legend className="mb-1.5 text-[13px] font-medium text-muted">Days</legend>
-              <div className="flex flex-wrap gap-1">
-                {DAYS.map((d, i) => (
-                  <button
-                    type="button"
-                    key={d}
-                    aria-pressed={f.recurrenceDays.includes(i + 1)}
-                    onClick={() => set("recurrenceDays", f.recurrenceDays.includes(i + 1) ? f.recurrenceDays.filter((x) => x !== i + 1) : [...f.recurrenceDays, i + 1])}
-                    className={`h-8 rounded-md border px-2 text-xs ${f.recurrenceDays.includes(i + 1) ? "border-accent bg-accent-soft text-accent" : "border-line text-muted"}`}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-              {errors.recurrence && <p className="mt-1 text-xs text-danger">{errors.recurrence}</p>}
-            </fieldset>
-          )}
-        </div>
-        {otherTasks.length > 0 && (
-          <Field label="Must come after" hint="Ctrl/Cmd-click to pick several. The scheduler keeps this order." error={errors.dependsOn}>
-            {(id) => (
-              <select
-                id={id}
-                multiple
-                value={f.dependsOn}
-                onChange={(e) => set("dependsOn", Array.from(e.target.selectedOptions).map((o) => o.value))}
-                className="min-h-20 w-full rounded-lg border border-line bg-surface-2 px-2 py-1 text-sm"
-              >
-                {otherTasks.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title}
-                  </option>
-                ))}
-              </select>
-            )}
-          </Field>
-        )}
-      </fieldset>
-
-      <fieldset className="space-y-4 rounded-lg border border-line p-4">
-        <legend className="px-1 text-[13px] font-semibold">Completion & verification</legend>
-        <Field label="Verification">
+        <Field label="Repeats">
           {(id) => (
-            <Select id={id} value={f.check} onChange={(e) => set("check", e.target.value as Check)}>
-              <option value="none">Manual — I mark it complete</option>
-              <option value="problem">Solve a specific LeetCode / Codeforces problem</option>
-              <option value="lc_count">Solve problems on LeetCode</option>
-              <option value="cf_count">Solve problems on Codeforces</option>
-              <option value="lc_potd">LeetCode Problem of the Day</option>
+            <Select id={id} value={f.recurrenceType} onChange={(e) => set("recurrenceType", e.target.value as typeof f.recurrenceType)}>
+              <option value="none">Does not repeat</option>
+              <option value="daily">Every day</option>
+              <option value="weekdays">Weekdays</option>
+              <option value="weekly">Specific days</option>
             </Select>
           )}
         </Field>
-        {f.check === "problem" && (
-          <Field label="Problem link" error={errors.verification} hint="Checked against your accepted submissions after the task is created.">
-            {(id) => <Input id={id} type="url" value={f.problemUrl} onChange={(e) => set("problemUrl", e.target.value)} placeholder="https://leetcode.com/problems/two-sum/" />}
-          </Field>
+      </div>
+      {f.recurrenceType === "weekly" && (
+        <fieldset>
+          <legend className="mb-1.5 text-[13px] font-medium text-muted">On these days</legend>
+          <div className="flex flex-wrap gap-1">
+            {DAYS.map((d, i) => (
+              <button
+                type="button"
+                key={d}
+                aria-pressed={f.recurrenceDays.includes(i + 1)}
+                onClick={() => set("recurrenceDays", f.recurrenceDays.includes(i + 1) ? f.recurrenceDays.filter((x) => x !== i + 1) : [...f.recurrenceDays, i + 1])}
+                className={`h-10 min-w-11 rounded-md border px-2 text-sm desk:h-8 desk:min-w-0 desk:text-xs ${f.recurrenceDays.includes(i + 1) ? "border-accent bg-accent-soft text-accent" : "border-line text-muted"}`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          {errors.recurrence && <p className="mt-1 text-xs text-danger">{errors.recurrence}</p>}
+        </fieldset>
+      )}
+
+      <Field
+        label="Remind me if it's not done (optional)"
+        error={errors.reminder}
+        hint={f.recurrenceType !== "none" ? "On each day it's due, at this time — skipped once it's done." : "Sent as a notification only if the task is still open then."}
+      >
+        {(id) => (
+          <div className="flex flex-wrap items-center gap-2">
+            {f.recurrenceType !== "none" ? (
+              <div className="w-36"><Input id={id} type="time" value={f.reminderTime} onChange={(e) => set("reminderTime", e.target.value)} /></div>
+            ) : (
+              <div className="w-60"><Input id={id} type="datetime-local" value={f.reminderAt} onChange={(e) => set("reminderAt", e.target.value)} /></div>
+            )}
+            {f.recurrenceType === "none" && f.dueAt && (
+              <Button type="button" size="sm" variant="ghost" onClick={() => set("reminderAt", isoToLocalInput(new Date(Date.parse(localInputToIso(f.dueAt, tz)!) - 3600_000).toISOString(), tz))}>
+                1 hour before due
+              </Button>
+            )}
+            {(f.recurrenceType !== "none" ? f.reminderTime : f.reminderAt) && (
+              <Button type="button" size="sm" variant="ghost" onClick={() => (f.recurrenceType !== "none" ? set("reminderTime", "") : set("reminderAt", ""))}>
+                Clear
+              </Button>
+            )}
+          </div>
         )}
-        {f.check === "lc_potd" && <p className="text-xs text-muted">Needs an accepted submission of that day's problem. LeetCode's day runs on UTC (05:30–05:30 IST).</p>}
-        {(f.check === "lc_count" || f.check === "cf_count") && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Distinct problems">{(id) => <Input id={id} type="number" min={1} max={50} value={f.count} onChange={(e) => set("count", Number(e.target.value))} />}</Field>
-            {f.check === "lc_count" ? (
-              <Field label="Difficulty">
+      </Field>
+
+      <Field label="Link (optional)" error={errors.resourceUrl ?? (f.check === "problem" ? errors.verification : undefined)} hint="A LeetCode or Codeforces problem, or any article, doc or video you'll need.">
+        {(id) => <Input id={id} type="url" value={f.problemUrl} onChange={(e) => setLink(e.target.value)} placeholder="https://" />}
+      </Field>
+
+      <Field label="How it's marked done">
+        {(id) => (
+          <Select id={id} value={f.check} onChange={(e) => set("check", e.target.value as Check)}>
+            <option value="none">I tick it myself</option>
+            <option value="problem" disabled={!verifiable}>
+              Ticks itself when I solve the linked problem{verifiable ? "" : " (paste a problem link above)"}
+            </option>
+            <option value="lc_potd">Ticks itself when I solve LeetCode's Problem of the Day</option>
+            <option value="lc_count">Ticks itself after solving a number of LeetCode problems</option>
+            <option value="cf_count">Ticks itself after solving a number of Codeforces problems</option>
+          </Select>
+        )}
+      </Field>
+      {f.check !== "none" && (
+        <p className="-mt-3 text-xs text-muted">
+          {f.check === "problem" && "Done once an accepted submission of this problem is found. "}
+          {f.check === "lc_potd" && "Done once you get that day's problem accepted. LeetCode's day runs on UTC (05:30–05:30 IST). "}
+          {(f.check === "lc_count" || f.check === "cf_count") && "Done once enough distinct problems are accepted after the task starts. "}
+          Ticking it syncs your submissions first, so it can't be ticked by hand — connect your account in Settings → Coding platforms.
+        </p>
+      )}
+      {(f.check === "lc_count" || f.check === "cf_count") && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="How many problems">{(id) => <Input id={id} type="number" min={1} max={50} value={f.count} onChange={(e) => set("count", Number(e.target.value))} />}</Field>
+          {f.check === "lc_count" ? (
+            <Field label="Difficulty">
+              {(id) => (
+                <Select id={id} value={f.difficulty} onChange={(e) => set("difficulty", e.target.value as typeof f.difficulty)}>
+                  {["Any", "Easy", "Medium", "Hard"].map((d) => (
+                    <option key={d}>{d}</option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          ) : (
+            <Field label="Minimum rating" hint="Leave empty for any rating">
+              {(id) => <Input id={id} type="number" min={0} max={4000} step={100} value={f.minRating} onChange={(e) => set("minRating", e.target.value)} />}
+            </Field>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-lg border border-line">
+        <button type="button" aria-expanded={more} onClick={() => setMore((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-left text-[13px] font-medium">
+          <ChevronDown className={`size-4 text-muted transition-transform ${more ? "" : "-rotate-90"}`} aria-hidden />
+          More options
+          <span className="font-normal text-faint">notes, priority, goal, when to schedule it</span>
+        </button>
+        {more && (
+          <div className="space-y-4 border-t border-line p-4">
+            <Field label="Notes">{(id) => <Textarea id={id} rows={2} value={f.description} onChange={(e) => set("description", e.target.value)} />}</Field>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Priority">
                 {(id) => (
-                  <Select id={id} value={f.difficulty} onChange={(e) => set("difficulty", e.target.value as typeof f.difficulty)}>
-                    {["Any", "Easy", "Medium", "Hard"].map((d) => (
-                      <option key={d}>{d}</option>
+                  <Select id={id} value={f.priority} onChange={(e) => set("priority", Number(e.target.value))}>
+                    {[4, 3, 2, 1].map((p) => (
+                      <option key={p} value={p}>
+                        {PRIORITY_LABELS[p]}
+                      </option>
                     ))}
                   </Select>
                 )}
               </Field>
-            ) : (
-              <Field label="Minimum rating" hint="Leave empty for any rating">
-                {(id) => <Input id={id} type="number" min={0} max={4000} step={100} value={f.minRating} onChange={(e) => set("minRating", e.target.value)} />}
+              <Field label="Goal">
+                {(id) => (
+                  <Select id={id} value={f.goalId} onChange={(e) => set("goalId", e.target.value)}>
+                    <option value="">No goal</option>
+                    {goals.data?.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.title}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              <Field label="Best time of day">
+                {(id) => (
+                  <Select id={id} value={f.preferredTime} onChange={(e) => set("preferredTime", e.target.value as typeof f.preferredTime)}>
+                    <option value="">Any time</option>
+                    <option value="morning">Morning</option>
+                    <option value="afternoon">Afternoon</option>
+                    <option value="evening">Evening</option>
+                  </Select>
+                )}
+              </Field>
+            </div>
+            <Toggle
+              checked={f.splittable}
+              onChange={(v) => set("splittable", v)}
+              label="Can be split into several sessions"
+              description={f.splittable ? "Progress carries over between sessions and days." : "Needs one uninterrupted block of the full time."}
+            />
+            {f.splittable && (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field label="Usual session (min)" hint="Default from settings">
+                  {(id) => <Input id={id} type="number" min={5} step={5} value={f.preferredSessionMinutes ?? ""} onChange={(e) => set("preferredSessionMinutes", num(e.target.value))} />}
+                </Field>
+                <Field label="Shortest (min)" error={errors.minSessionMinutes}>
+                  {(id) => <Input id={id} type="number" min={5} step={5} value={f.minSessionMinutes ?? ""} onChange={(e) => set("minSessionMinutes", num(e.target.value))} />}
+                </Field>
+                <Field label="Longest (min)" error={errors.maxSessionMinutes}>
+                  {(id) => <Input id={id} type="number" min={5} step={5} value={f.maxSessionMinutes ?? ""} onChange={(e) => set("maxSessionMinutes", num(e.target.value))} />}
+                </Field>
+              </div>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Only schedule it between" hint="Every day, e.g. 18:00–22:00">
+                {(id) => (
+                  <div className="flex items-center gap-1.5">
+                    <Input id={id} type="time" value={f.windowStart} onChange={(e) => set("windowStart", e.target.value)} aria-label="Window start" />
+                    <span className="text-faint">–</span>
+                    <Input type="time" value={f.windowEnd} onChange={(e) => set("windowEnd", e.target.value)} aria-label="Window end" />
+                  </div>
+                )}
+              </Field>
+              <Field label="At most per day (min)">
+                {(id) => <Input id={id} type="number" min={5} step={5} value={f.maxMinutesPerDay ?? ""} onChange={(e) => set("maxMinutesPerDay", num(e.target.value))} />}
+              </Field>
+              <Field label="Don't start before">{(id) => <Input id={id} type="datetime-local" value={f.earliestStartAt} onChange={(e) => set("earliestStartAt", e.target.value)} />}</Field>
+              <Field label="Must be finished by" hint="A hard limit, unlike “Due by”">
+                {(id) => <Input id={id} type="datetime-local" value={f.latestFinishAt} onChange={(e) => set("latestFinishAt", e.target.value)} />}
+              </Field>
+            </div>
+            {otherTasks.length > 0 && (
+              <Field label="Do it after" hint="Ctrl/Cmd-click to pick several. The schedule keeps this order." error={errors.dependsOn}>
+                {(id) => (
+                  <select
+                    id={id}
+                    multiple
+                    value={f.dependsOn}
+                    onChange={(e) => set("dependsOn", Array.from(e.target.selectedOptions).map((o) => o.value))}
+                    className="min-h-20 w-full rounded-lg border border-line bg-surface-2 px-2 py-1 text-base desk:text-sm"
+                  >
+                    {otherTasks.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </Field>
             )}
           </div>
         )}
-        <Field label="Done when…">{(id) => <Input id={id} value={f.completionCriteria} onChange={(e) => set("completionCriteria", e.target.value)} placeholder="Both problems accepted without hints" />}</Field>
-        <Field label="Resource URL" error={errors.resourceUrl}>
-          {(id) => <Input id={id} type="url" value={f.resourceUrl} onChange={(e) => set("resourceUrl", e.target.value)} placeholder="https://" />}
-        </Field>
-        <Field label="Notes">{(id) => <Textarea id={id} value={f.description} onChange={(e) => set("description", e.target.value)} />}</Field>
-      </fieldset>
+      </div>
 
       {errors.form && <p className="text-sm text-danger">{errors.form}</p>}
-      <div className="flex justify-end gap-2">
+      {/* Pinned to the bottom of the sheet, so Create is always one tap away on a phone. */}
+      <div className="sticky bottom-0 -mx-5 -mb-4 flex justify-end gap-2 border-t border-line bg-surface px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button type="button" variant="ghost" onClick={onDone}>
           Cancel
         </Button>

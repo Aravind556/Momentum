@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, uniqueIndex } from "drizzle-orm/pg-core";
-import type { Recurrence, TimeRange, VerificationConfig } from "@momentum/shared";
+import type { Recurrence, TaskReminder, TimeRange, VerificationConfig } from "@momentum/shared";
 import { createdAt, id, ts, updatedAt } from "../../core/db/columns.js";
 import { user } from "../../core/db/core-schema.js";
 
@@ -53,6 +53,8 @@ export const tasks = pgTable(
     maxMinutesPerDay: integer("max_minutes_per_day"),
     recurrence: jsonb("recurrence").$type<Recurrence>().notNull(),
     verification: jsonb("verification").$type<VerificationConfig>().notNull(),
+    /** Per-task reminder, sent only while the task is still open (see notify/task-reminders.ts). */
+    reminder: jsonb("reminder").$type<TaskReminder | null>(),
     completionCriteria: text("completion_criteria"),
     resourceUrl: text("resource_url"),
     status: text("status", {

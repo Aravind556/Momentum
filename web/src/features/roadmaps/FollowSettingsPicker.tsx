@@ -1,4 +1,6 @@
 import { PACE_PRESETS, PRESET_COPY, type FollowPatch, type NewPace, type PacePreset, type Revision } from "@momentum/shared";
+import { ChevronDown } from "lucide-react";
+import { useState } from "react";
 import { cx, Field, Select } from "../../components/ui";
 
 export type FollowDraft = Required<Pick<FollowPatch, "newPace" | "revision" | "preferredTime">>;
@@ -25,6 +27,8 @@ const REVISION_LABELS: Record<Revision, string> = {
  */
 export function FollowSettingsPicker({ value, onChange, compact }: { value: FollowDraft; onChange: (v: FollowDraft) => void; compact?: boolean }) {
   const preset = value.newPace === value.revision && (PACE_PRESETS as readonly string[]).includes(value.newPace) ? (value.newPace as PacePreset) : null;
+  // When picking a preset, the separate controls stay tucked away unless asked for.
+  const [fine, setFine] = useState(!preset || !!value.preferredTime);
   return (
     <div className="space-y-4">
       {!compact && (
@@ -47,7 +51,13 @@ export function FollowSettingsPicker({ value, onChange, compact }: { value: Foll
           ))}
         </div>
       )}
-      <div className={cx("grid gap-3", compact ? "grid-cols-1" : "sm:grid-cols-3")}>
+      {!compact && (
+        <button type="button" aria-expanded={fine} onClick={() => setFine((v) => !v)} className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
+          <ChevronDown className={cx("size-3.5 transition-transform", !fine && "-rotate-90")} aria-hidden />
+          Adjust new items, revisions and time of day separately
+        </button>
+      )}
+      <div className={cx("grid gap-3", compact ? "grid-cols-1" : "sm:grid-cols-3", !compact && !fine && "hidden")}>
         <Field label="New items">
           {(id) => (
             <Select id={id} value={value.newPace} onChange={(e) => onChange({ ...value, newPace: e.target.value as NewPace })}>

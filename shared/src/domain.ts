@@ -177,6 +177,18 @@ export const verificationSchema = z
   });
 export type VerificationConfig = z.infer<typeof verificationSchema>;
 
+/**
+ * A reminder for one task, sent only if it isn't done by then:
+ *  - at: once, at a moment (one-off tasks, or "remind me at 19:00" on today's item);
+ *  - daily: at a local time on every day the task is due (repeating tasks; for a one-off task,
+ *    every day until it's done).
+ */
+export const taskReminderSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("at"), at: isoDateTime }),
+  z.object({ type: z.literal("daily"), time: hhmm }),
+]);
+export type TaskReminder = z.infer<typeof taskReminderSchema>;
+
 const minuteField = z.number().int().min(5).max(24 * 60);
 
 export const taskInputSchema = z
@@ -201,6 +213,7 @@ export const taskInputSchema = z
     verification: verificationSchema.default({ provider: "none" }),
     completionCriteria: z.string().max(500).optional().nullable(),
     resourceUrl: z.string().url().max(2000).optional().nullable(),
+    reminder: taskReminderSchema.optional().nullable(),
   })
   .refine(
     (t) => !t.minSessionMinutes || !t.maxSessionMinutes || t.minSessionMinutes <= t.maxSessionMinutes,

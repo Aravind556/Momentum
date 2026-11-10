@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { completeTaskSchema, goalInputSchema, quickTaskSchema, taskInputSchema } from "@momentum/shared";
+import { completeTaskSchema, goalInputSchema, quickTaskSchema, taskInputSchema, taskReminderSchema } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { param, parse, queryString } from "../../core/http.js";
 import { uid } from "../../core/middleware.js";
@@ -39,6 +39,11 @@ export function taskRoutes(r: Router, s: Services) {
     const task = await tasks.createTask(s.db, uid(req), body, { createdAt: new Date(s.now()) });
     await s.events.emit("task.changed", { userId: uid(req), taskId: task.id });
     res.status(201).json(task);
+  });
+  /** Set or clear just the reminder (works for any of your items, including today's roadmap work). */
+  r.put("/tasks/:id/reminder", async (req, res) => {
+    const body = parse(z.object({ reminder: taskReminderSchema.nullable() }), req.body);
+    res.json(await tasks.setReminder(s, uid(req), param(req, "id"), body.reminder));
   });
   r.put("/tasks/:id", async (req, res) => {
     const body = parse(taskInputSchema, req.body);

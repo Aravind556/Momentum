@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Compact sizes only for a mouse or trackpad on a wider screen. Phones, tablets and phones in
+   landscape keep large, 16px touch sizes (smaller text makes iOS zoom in on focus). */
+@custom-variant desk (@media (min-width: 40rem) and (pointer: fine));
+/* Very short screens, e.g. a phone held sideways. */
+@custom-variant short (@media (max-height: 30rem));
+
 /* Design tokens. Dark is the primary theme; light follows the OS or an explicit choice. */
 :root {
   --bg: #0b0d10;
@@ -31,6 +37,12 @@
   --platform-leetcode: #e2a24a;
   --platform-codeforces: #6ea8ff;
   --platform-codechef: #b98b66;
+  /* Activity chart series (fixed order, validated for CVD on the dark surface). */
+  --series-tasks: #3987e5;
+  --series-roadmap: #d95926;
+  --series-revisions: #199e70;
+  --series-group: #c98500;
+  --series-problems: #d55181;
   color-scheme: dark;
 }
 
@@ -63,6 +75,11 @@
     --platform-leetcode: #b7791f;
     --platform-codeforces: #2f6fd6;
     --platform-codechef: #8a5a33;
+    --series-tasks: #2a78d6;
+    --series-roadmap: #eb6834;
+    --series-revisions: #1baf7a;
+    --series-group: #eda100;
+    --series-problems: #e87ba4;
     color-scheme: light;
   }
 }
@@ -94,10 +111,20 @@
   --platform-leetcode: #b7791f;
   --platform-codeforces: #2f6fd6;
   --platform-codechef: #8a5a33;
+    --series-tasks: #2a78d6;
+    --series-roadmap: #eb6834;
+    --series-revisions: #1baf7a;
+    --series-group: #eda100;
+    --series-problems: #e87ba4;
   color-scheme: light;
 }
 
 @theme inline {
+  --color-series-tasks: var(--series-tasks);
+  --color-series-roadmap: var(--series-roadmap);
+  --color-series-revisions: var(--series-revisions);
+  --color-series-group: var(--series-group);
+  --color-series-problems: var(--series-problems);
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);

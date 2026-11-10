@@ -82,7 +82,7 @@ export function TasksPage({ embedded }: { embedded?: boolean } = {}) {
         padded={false}
         actions={
           <div className="flex gap-2">
-            <Select aria-label="Filter by status" className="h-8 w-36 text-xs" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <Select aria-label="Filter by status" className="h-10 w-36 desk:h-8 desk:text-xs" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">All open</option>
               {Object.entries(STATUS_LABEL)
                 .filter(([k]) => k !== "cancelled")
@@ -93,7 +93,7 @@ export function TasksPage({ embedded }: { embedded?: boolean } = {}) {
                 ))}
             </Select>
             {(goals.data?.length ?? 0) > 0 && (
-              <Select aria-label="Filter by goal" className="h-8 w-40 text-xs" value={goalFilter} onChange={(e) => setGoalFilter(e.target.value)}>
+              <Select aria-label="Filter by goal" className="h-10 w-40 desk:h-8 desk:text-xs" value={goalFilter} onChange={(e) => setGoalFilter(e.target.value)}>
                 <option value="">All goals</option>
                 {goals.data?.map((g) => (
                   <option key={g.id} value={g.id}>
@@ -121,7 +121,7 @@ export function TasksPage({ embedded }: { embedded?: boolean } = {}) {
                   <button
                     aria-label={done ? `Reopen ${t.title}` : `Mark ${t.title} complete`}
                     onClick={() => (done ? reopen.mutate(t) : complete.mutate(t))}
-                    className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border ${done ? "border-ok bg-ok-soft text-ok" : "border-line-strong hover:border-accent"}`}
+                    className={`relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border before:absolute before:-inset-2.5 before:content-[''] desk:size-5 ${done ? "border-ok bg-ok-soft text-ok" : "border-line-strong hover:border-accent"}`}
                   >
                     {done && <Check className="size-3.5" />}
                   </button>

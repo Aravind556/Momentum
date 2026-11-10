@@ -30,7 +30,7 @@ export const Button = forwardRef<
       disabled={disabled || loading}
       className={cx(
         "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 select-none whitespace-nowrap",
-        size === "sm" ? "h-8 px-2.5 text-[13px]" : "h-9 px-3.5 text-sm",
+        size === "sm" ? "h-10 px-3 text-sm desk:h-8 desk:px-2.5 desk:text-[13px]" : "h-11 px-4 text-[15px] desk:h-9 desk:px-3.5 desk:text-sm",
         variant === "primary" && "bg-accent text-accent-ink hover:bg-accent-strong",
         variant === "secondary" && "border border-line bg-surface-2 text-fg hover:bg-surface-3",
         variant === "ghost" && "text-muted hover:bg-surface-2 hover:text-fg",
@@ -50,7 +50,7 @@ export function IconButton({ label, children, className, ...rest }: ButtonHTMLAt
     <button
       aria-label={label}
       title={label}
-      className={cx("inline-flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-40", className)}
+      className={cx("inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-40 desk:size-8", className)}
       {...rest}
     >
       {children}
@@ -59,10 +59,10 @@ export function IconButton({ label, children, className, ...rest }: ButtonHTMLAt
 }
 
 const fieldBase =
-  "w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-fg placeholder:text-faint focus:border-accent focus:outline-none disabled:opacity-60";
+  "w-full min-w-0 rounded-lg border border-line bg-surface-2 px-3 text-base text-fg placeholder:text-faint focus:border-accent focus:outline-none disabled:opacity-60 desk:text-sm";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
-  return <input ref={ref} className={cx(fieldBase, "h-9", className)} {...rest} />;
+  return <input ref={ref} className={cx(fieldBase, "h-11 desk:h-9", className)} {...rest} />;
 });
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea({ className, ...rest }, ref) {
@@ -71,7 +71,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
 
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select({ className, children, ...rest }, ref) {
   return (
-    <select ref={ref} className={cx(fieldBase, "h-9 pr-8", className)} {...rest}>
+    <select ref={ref} className={cx(fieldBase, "h-11 pr-8 desk:h-9", className)} {...rest}>
       {children}
     </select>
   );
@@ -107,11 +107,11 @@ export function Toggle({ checked, onChange, label, description, disabled }: { ch
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cx(
-          "relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50",
+          "relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 desk:h-5 desk:w-9",
           checked ? "bg-accent" : "bg-surface-3 border border-line-strong",
         )}
       >
-        <span className={cx("absolute top-0.5 size-4 rounded-full bg-white shadow transition-all", checked ? "left-[18px]" : "left-0.5")} />
+        <span className={cx("absolute top-0.5 size-6 rounded-full bg-white shadow transition-all desk:size-4", checked ? "left-[22px] desk:left-[18px]" : "left-0.5")} />
       </button>
     </div>
   );
@@ -249,20 +249,23 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       className={cx(
-        "m-auto max-h-[90vh] w-[calc(100%-2rem)] overflow-hidden rounded-xl border border-line bg-surface p-0 text-fg shadow-2xl",
-        wide ? "max-w-2xl" : "max-w-lg",
+        // Phones: a sheet from the bottom edge, nearly full height. From sm up: a centered dialog.
+        "mx-0 mb-0 mt-auto max-h-[92dvh] w-full max-w-full overflow-hidden rounded-t-2xl border border-line bg-surface p-0 text-fg shadow-2xl",
+        "sm:m-auto sm:max-h-[90vh] sm:w-[calc(100%-2rem)] sm:rounded-xl",
+        wide ? "sm:max-w-2xl" : "sm:max-w-lg",
       )}
     >
       {open && (
-        <div className="flex max-h-[90vh] flex-col">
-          <header className="flex items-center justify-between border-b border-line px-5 py-3.5">
+        <div className="flex max-h-[92dvh] flex-col sm:max-h-[90vh]">
+          <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line-strong sm:hidden" aria-hidden />
+          <header className="flex items-center justify-between border-b border-line px-5 py-2.5 sm:py-3.5">
             <h2 className="text-[15px] font-semibold">{title}</h2>
             <IconButton label="Close" onClick={onClose}>
               <X className="size-4" />
             </IconButton>
           </header>
-          <div className="overflow-y-auto px-5 py-4">{children}</div>
-          {footer && <footer className="flex justify-end gap-2 border-t border-line px-5 py-3">{footer}</footer>}
+          <div className="overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
+          {footer && <footer className="flex justify-end gap-2 border-t border-line px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</footer>}
         </div>
       )}
     </dialog>
@@ -278,7 +281,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
           role="radio"
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
-          className={cx("h-7 rounded-md px-2.5 text-[13px] font-medium", value === o.value ? "bg-surface-3 text-fg shadow-sm" : "text-muted hover:text-fg")}
+          className={cx("h-9 rounded-md px-3 text-sm font-medium desk:h-7 desk:px-2.5 desk:text-[13px]", value === o.value ? "bg-surface-3 text-fg shadow-sm" : "text-muted hover:text-fg")}
         >
           {o.label}
         </button>

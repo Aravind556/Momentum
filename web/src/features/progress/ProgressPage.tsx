@@ -3,6 +3,7 @@ import { Flame, Lightbulb, Table2 } from "lucide-react";
 import { useState } from "react";
 import { CATEGORY_LABELS } from "@momentum/shared";
 import { api } from "../../lib/api";
+import { ActivityOverview } from "./ActivityOverview";
 import { CodingProgress } from "./CodingProgress";
 import { fmtDate, fmtMinutes } from "../../lib/format";
 import { Button, Card, EmptyState, ErrorState, Segmented, Spinner } from "../../components/ui";
@@ -42,14 +43,14 @@ function Delta({ now, prev, unit = "" }: { now: number; prev: number; unit?: str
 }
 
 export function ProgressPage() {
-  const [tab, setTab] = useState<"coding" | "time">("coding");
+  const [tab, setTab] = useState<"overview" | "coding" | "time">("overview");
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold">Progress</h1>
-        <Segmented label="Progress view" value={tab} onChange={setTab} options={[{ value: "coding", label: "Coding" }, { value: "time", label: "Time & tasks" }]} />
+        <Segmented label="Progress view" value={tab} onChange={setTab} options={[{ value: "overview", label: "Overview" }, { value: "coding", label: "Coding" }, { value: "time", label: "Planning" }]} />
       </header>
-      {tab === "coding" ? <CodingProgress /> : <TimeProgress />}
+      {tab === "overview" ? <ActivityOverview /> : tab === "coding" ? <CodingProgress /> : <TimeProgress />}
     </div>
   );
 }

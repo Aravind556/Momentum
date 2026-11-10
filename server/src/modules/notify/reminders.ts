@@ -36,14 +36,14 @@ async function pendingToday(s: Services, userId: string, day: string, tz: string
 }
 
 /** Before nagging, pick up anything solved since the last sync (light, background priority). */
-async function refreshSubmissions(s: Services, userId: string, providers: string[], now: number) {
+export async function refreshSubmissions(s: Services, userId: string, providers: string[], now: number, maxAgeMs = 30 * 60_000) {
   const conns = await s.db
     .select()
     .from(integrationConnections)
     .where(and(eq(integrationConnections.userId, userId), inArray(integrationConnections.provider, providers), ne(integrationConnections.status, "disconnected")));
   await asBackground(async () => {
     for (const c of conns) {
-      if (c.lastSyncAt && now - c.lastSyncAt.getTime() < 30 * 60_000) continue;
+      if (c.lastSyncAt && now - c.lastSyncAt.getTime() < maxAgeMs) continue;
       await syncConnection(s, userId, c.provider).catch(() => undefined);
     }
   });

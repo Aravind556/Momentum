@@ -7,7 +7,6 @@ import { addDaysStr, fmtDate, fmtMinutes, fmtTime, todayIn } from "../../lib/for
 import { SCHEDULE_KEYS, useAction, useTz } from "../../lib/hooks";
 import type { Block, Commitment, ScheduleView } from "../../lib/types";
 import { Badge, Button, Card, cx, EmptyState, ErrorState, IconButton, Segmented, Spinner } from "../../components/ui";
-import { TasksPage } from "../tasks/TasksPage";
 import { AvailabilityEditor } from "./AvailabilityEditor";
 import { BlockDetail } from "./BlockDetail";
 import { CommitmentModal } from "./CommitmentForm";
@@ -19,8 +18,7 @@ interface ForecastDay {
   items: Array<{ title: string; label: string | null; kind: "new" | "revision" | "group" | "task" | "deadline"; category: string; estMinutes: number }>;
 }
 
-type Tab = "week" | "tasks" | "classes" | "availability";
-const TABS: Tab[] = ["week", "tasks", "classes", "availability"];
+type Tab = "week" | "setup";
 
 function mondayOf(date: string) {
   const wd = (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
@@ -28,40 +26,47 @@ function mondayOf(date: string) {
 }
 
 /**
- * The Planner: your week at a glance, plus the three things that shape it — your own tasks,
- * your classes, and the hours you're available.
+ * The Calendar: your week at a glance, plus its one-time setup — your classes and the hours
+ * you're available, which every plan is built around.
  */
 export function PlannerPage() {
   const tz = useTz();
   const [params, setParams] = useSearchParams();
-  const raw = params.get("tab");
-  const tab: Tab = raw === "commitments" ? "classes" : (TABS as string[]).includes(raw ?? "") ? (raw as Tab) : "week";
+  const tab: Tab = params.get("tab") === "setup" ? "setup" : "week";
   const [classOpen, setClassOpen] = useState(false);
 
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Planner</h1>
-          <p className="text-sm text-muted">Your week, built around your classes and free time.</p>
+          <h1 className="text-lg font-semibold">Calendar</h1>
+          <p className="text-sm text-muted">{tab === "week" ? "Your week, built around your classes and free time." : "Set once: your classes and the hours you can study. Every plan works around them."}</p>
         </div>
         <Segmented
-          label="Planner section"
+          label="Calendar view"
           value={tab}
           onChange={(t) => setParams(t === "week" ? {} : { tab: t }, { replace: true })}
           options={[
             { value: "week", label: "Week" },
-            { value: "tasks", label: "Tasks" },
-            { value: "classes", label: "Classes" },
-            { value: "availability", label: "Availability" },
+            { value: "setup", label: "Week setup" },
           ]}
         />
       </header>
 
-      {tab === "week" && <WeekTab onAddClass={() => setClassOpen(true)} />}
-      {tab === "tasks" && <TasksPage embedded />}
-      {tab === "classes" && <ClassesTab onAdd={() => setClassOpen(true)} />}
-      {tab === "availability" && <AvailabilityEditor />}
+      {tab === "week" ? (
+        <WeekTab onAddClass={() => setClassOpen(true)} />
+      ) : (
+        <div className="space-y-8">
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold">Classes & commitments</h2>
+            <ClassesTab onAdd={() => setClassOpen(true)} />
+          </section>
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold">When you can study</h2>
+            <AvailabilityEditor />
+          </section>
+        </div>
+      )}
       <CommitmentModal open={classOpen} onClose={() => setClassOpen(false)} date={todayIn(tz)} />
     </div>
   );

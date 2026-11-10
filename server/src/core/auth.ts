@@ -36,7 +36,14 @@ export function createAuth(db: DB) {
       expiresIn: 60 * 60 * 24 * 30,
       updateAge: 60 * 60 * 24,
     },
-    rateLimit: { enabled: !env.isTest, window: 60, max: 30 },
+    rateLimit: {
+      enabled: !env.isTest,
+      window: 60,
+      max: 30,
+      // Reading your own session is harmless and happens on every page load and tab focus;
+      // limiting it signs people out. Sign-in and sign-up keep the strict limits.
+      customRules: { "/get-session": false },
+    },
     telemetry: { enabled: false },
   });
 }

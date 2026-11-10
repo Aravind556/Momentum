@@ -28,7 +28,7 @@ export function GroupDetailPage() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <Link to="/groups" className="text-xs text-muted hover:text-fg">
+          <Link to="/groups" className="-my-2 inline-block py-2 text-sm text-muted hover:text-fg desk:text-xs">
             ← Groups
           </Link>
           <h1 className="text-lg font-semibold">{d.group.name}</h1>

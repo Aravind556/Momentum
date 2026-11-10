@@ -141,14 +141,14 @@ function NewRoadmapModal({ open, onClose }: { open: boolean; onClose: () => void
     >
       <div className="space-y-5">
         <Field label="Name">{(id) => <Input id={id} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Graphs — Striver sheet" maxLength={120} />}</Field>
-        <Field label="Items" hint="One per line: a LeetCode / Codeforces / CodeChef link, any other link, or a topic. Add a title before a link and a time at the end, like “(45m)”. “# Heading” starts a section; bullets and numbering are ignored. A YouTube playlist link adds every video.">
+        <Field label="Items" hint="One per line: problem links, other links or topics. Optional: “# Section”, and a time like “(45m)” at the end. You can add more later.">
           {(id) => (
             <Textarea
               id={id}
               rows={7}
               value={items}
               onChange={(e) => setItems(e.target.value)}
-              className="font-mono text-[13px]"
+              className="font-mono text-base desk:text-[13px]"
               placeholder={"# BFS\nhttps://leetcode.com/problems/rotting-oranges/\nhttps://codeforces.com/problemset/problem/1037/D\n# Theory\nDijkstra — https://cp-algorithms.com/graph/dijkstra.html (45m)\nRevise shortest paths (30m)"}
             />
           )}

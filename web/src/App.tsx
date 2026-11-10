@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import { authClient } from "./lib/auth-client";
 import { useMe } from "./lib/hooks";
 import { Spinner } from "./components/ui";
@@ -13,6 +13,7 @@ import { ProgressPage } from "./features/progress/ProgressPage";
 import { RoadmapDetailPage } from "./features/roadmaps/RoadmapDetailPage";
 import { RoadmapsPage } from "./features/roadmaps/RoadmapsPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
+import { TasksPage } from "./features/tasks/TasksPage";
 import { TodayPage } from "./features/today/TodayPage";
 
 export function App() {
@@ -45,8 +46,9 @@ function SignedIn() {
       <Route path="/signup" element={<Navigate to="/" replace />} />
       <Route element={<Layout />}>
         <Route path="/" element={<TodayPage />} />
-        <Route path="/planner" element={<PlannerPage />} />
-        <Route path="/tasks" element={<Navigate to="/planner?tab=tasks" replace />} />
+        <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/calendar" element={<PlannerPage />} />
+        <Route path="/planner" element={<OldPlannerRedirect />} />
         <Route path="/roadmaps" element={<RoadmapsPage />} />
         <Route path="/roadmaps/:id" element={<RoadmapDetailPage />} />
         <Route path="/focus" element={<FocusPage />} />
@@ -59,4 +61,13 @@ function SignedIn() {
       </Route>
     </Routes>
   );
+}
+
+/** Old /planner links (bookmarks, notifications) land on the page that now holds that tab. */
+function OldPlannerRedirect() {
+  const [params] = useSearchParams();
+  const tab = params.get("tab");
+  if (tab === "tasks") return <Navigate to="/tasks" replace />;
+  if (tab === "classes" || tab === "availability" || tab === "commitments") return <Navigate to="/calendar?tab=setup" replace />;
+  return <Navigate to="/calendar" replace />;
 }

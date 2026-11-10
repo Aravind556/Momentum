@@ -1,45 +1,46 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarPlus, Check, Clock, Flame, Loader2, Play, Repeat, ShieldCheck, Shuffle, SkipForward, Timer, Undo2, X } from "lucide-react";
+import { Bell, Check, Clock, Flame, Loader2, Lock, Play, Plus, Repeat, ShieldCheck, Shuffle, SkipForward, Timer, Undo2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CATEGORY_META, type Category } from "@momentum/shared";
 import { api, errorMessage } from "../../lib/api";
-import { fmtDate, fmtMinutes, fmtTime, todayIn } from "../../lib/format";
+import { fmtDate, fmtMinutes, fmtTime, localToIso, todayIn } from "../../lib/format";
 import { SCHEDULE_KEYS, useAction, useMe, useTz } from "../../lib/hooks";
-import type { Block, FocusSession, TodayItem, TodayView } from "../../lib/types";
+import type { FocusSession, ScheduleView, TodayItem, TodayView } from "../../lib/types";
 import { RowMenu, type RowMenuItem } from "../../components/RowMenu";
-import { Button, Card, cx, EmptyState, ErrorState, Field, Input, Modal, Progress, Segmented, Spinner, useToast } from "../../components/ui";
-import { BlockDetail } from "../planner/BlockDetail";
-import { CommitmentModal } from "../planner/CommitmentForm";
+import { Button, Card, cx, EmptyState, ErrorState, Field, Input, Modal, Progress, Spinner, useToast } from "../../components/ui";
 import { QuickAdd, UnscheduledCard } from "../planner/SchedulePanels";
-import { Agenda, useSchedule } from "../planner/Agenda";
+import { useSchedule } from "../planner/Agenda";
+import { TaskFormModal } from "../tasks/TaskForm";
 import { CategoryDot } from "../roadmaps/CategoryDot";
 import { ComingUp } from "./ComingUp";
 
 /** Everything the day plan touches; invalidated after any change on this page. */
 const TODAY_KEYS = [["today"], ["roadmaps"], ["roadmap"], ["reviews"], ["progress"], ["forecast"], ...SCHEDULE_KEYS];
 
-const SECTION_ORDER = ["group", "leetcode", "codeforces", "codechef", "other", "mine"] as const;
-const sectionOf = (i: TodayItem) => (i.source === "manual" ? "mine" : i.source === "group" ? "group" : (i.category as Category));
-const SECTION_LABEL: Record<string, string> = {
-  ...Object.fromEntries(Object.entries(CATEGORY_META).map(([k, v]) => [k, v.label])),
-  other: "Topics & lessons",
-  mine: "Your tasks",
-  group: "Group tasks",
-};
+/** The short tag shown on each row: where the item came from. */
+function tagOf(i: TodayItem): string {
+  if (i.source === "manual") return "Task";
+  if (i.source === "group") return "Group";
+  if (i.source === "review") return "Revision";
+  if (i.category === "other") return "Topic";
+  return CATEGORY_META[i.category as Category]?.label ?? "Item";
+}
 
 export function TodayPage() {
   const tz = useTz();
   const me = useMe();
+  const navigate = useNavigate();
   const today = todayIn(tz);
-  const [view, setView] = useState<"list" | "schedule">("list");
-  const [commitOpen, setCommitOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const q = useQuery({ queryKey: ["today"], queryFn: () => api.get<TodayView>("/today") });
+  const schedule = useSchedule(today, today);
 
   if (q.isPending) return <Spinner />;
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} />;
   const d = q.data;
   const { done, total, minutesPlanned } = d.summary;
+  const unplaced = schedule.data && (schedule.data.unscheduled.length > 0 || (schedule.data.lastReport?.warnings ?? []).length > 0);
 
   return (
     <div className="space-y-5">
@@ -56,12 +57,11 @@ export function TodayPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="md:hidden">
-            <Segmented label="Today view" value={view} onChange={setView} options={[{ value: "list", label: "List" }, { value: "schedule", label: "Schedule" }]} />
-          </div>
-          <Button icon={<CalendarPlus className="size-4" />} onClick={() => setCommitOpen(true)}>
-            <span className="hidden sm:inline">Add class / commitment</span>
-            <span className="sm:hidden">Commitment</span>
+          <Button icon={<Timer className="size-4" />} onClick={() => navigate("/focus")}>
+            Focus
+          </Button>
+          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
+            Add task
           </Button>
         </div>
       </header>
@@ -77,60 +77,91 @@ export function TodayPage() {
       <ActiveSession />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className={cx("space-y-5", view === "schedule" && "hidden md:block")}>
-          {d.items.length === 0 ? <EmptyDay /> : <DayList items={d.items} tz={tz} />}
+        <DayList items={d.items} classes={(schedule.data?.commitments ?? []).filter((c) => c.date === today)} tz={tz} />
+        <div className="space-y-5">
+          {unplaced && <UnscheduledCard view={schedule.data!} />}
           <ComingUp />
         </div>
-        <div className={cx("space-y-5", view === "list" && "hidden md:block")}>
-          <DaySchedule day={today} tz={tz} />
-          <Card title="Quick add">
-            <QuickAdd />
-            <p className="mt-2 text-xs text-faint">
-              Deadlines, repeats or verification? <Link to="/planner?tab=tasks" className="text-accent">Open Tasks</Link>
-            </p>
-          </Card>
-        </div>
       </div>
-      <CommitmentModal open={commitOpen} onClose={() => setCommitOpen(false)} date={today} />
+      <TaskFormModal open={adding} onClose={() => setAdding(false)} />
     </div>
   );
 }
 
-function DayList({ items, tz }: { items: TodayItem[]; tz: string }) {
+type DayClass = ScheduleView["commitments"][number];
+
+/** The whole day in one list: open-all-day items first, then everything at a set time, in order. */
+function DayList({ items, classes, tz }: { items: TodayItem[]; classes: DayClass[]; tz: string }) {
   const [swapFor, setSwapFor] = useState<TodayItem | null>(null);
   const [timeFor, setTimeFor] = useState<TodayItem | null>(null);
-  const sections = SECTION_ORDER.map((key) => ({ key, items: items.filter((i) => sectionOf(i) === key) })).filter((s) => s.items.length);
+  const [remindFor, setRemindFor] = useState<TodayItem | null>(null);
+  const anyTime = items.filter((i) => !i.block);
+  const timed = [
+    ...items.filter((i) => i.block).map((i) => ({ at: Date.parse(i.block!.startAt), item: i as TodayItem | null, cls: null as DayClass | null })),
+    ...classes.map((c) => ({ at: Date.parse(c.start), item: null, cls: c })),
+  ].sort((a, b) => a.at - b.at);
+  const left = items.filter((i) => i.status === "pending").length;
+  const row = (i: TodayItem) => <TodayRow key={i.taskId} item={i} tz={tz} onSwap={() => setSwapFor(i)} onTime={() => setTimeFor(i)} onRemind={() => setRemindFor(i)} />;
   return (
-    <>
-      {sections.map((sec) => {
-        const left = sec.items.filter((i) => i.status === "pending").length;
-        return (
-          <Card
-            key={sec.key}
-            padded={false}
-            title={
-              <span className="flex items-center gap-2">
-                {sec.key !== "mine" && sec.key !== "group" && <CategoryDot category={sec.key} />}
-                {SECTION_LABEL[sec.key]}
-              </span>
-            }
-            actions={<span className="text-xs text-muted tabular">{left ? `${left} left` : "All done"}</span>}
-          >
-            <ul className="divide-y divide-line">
-              {sec.items.map((i) => (
-                <TodayRow key={i.taskId} item={i} tz={tz} onSwap={() => setSwapFor(i)} onTime={() => setTimeFor(i)} />
-              ))}
-            </ul>
-          </Card>
-        );
-      })}
+    <Card
+      padded={false}
+      title="Today's plan"
+      actions={
+        <span className="flex items-center gap-2">
+          {items.length > 0 && <span className="text-xs text-muted tabular">{left ? `${left} left` : "All done 🎉"}</span>}
+          <RegenerateButton />
+        </span>
+      }
+    >
+      {items.length === 0 && classes.length === 0 ? (
+        <EmptyDay />
+      ) : (
+        <>
+          {anyTime.length > 0 && (
+            <section>
+              <h3 className="px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-muted uppercase">Any time today</h3>
+              <ul className="divide-y divide-line">{anyTime.map(row)}</ul>
+            </section>
+          )}
+          {timed.length > 0 && (
+            <section className={cx(anyTime.length > 0 && "border-t border-line")}>
+              <h3 className="px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-muted uppercase">At a set time</h3>
+              <ul className="divide-y divide-line">
+                {timed.map((t) =>
+                  t.item ? (
+                    row(t.item)
+                  ) : (
+                    <li key={`c-${t.cls!.commitmentId}-${t.cls!.start}`} className="flex items-center gap-3 px-4 py-3">
+                      <Lock className="mt-0.5 size-4 shrink-0 text-commit" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{t.cls!.title}</p>
+                        <p className="mt-0.5 text-xs text-muted tabular">
+                          <Tag>Class</Tag> {fmtTime(t.cls!.start, tz)}–{fmtTime(t.cls!.end, tz)}
+                        </p>
+                      </div>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
+      <div className="border-t border-line p-4">
+        <QuickAdd />
+      </div>
       <SwapModal item={swapFor} onClose={() => setSwapFor(null)} />
       <SetTimeModal item={timeFor} tz={tz} onClose={() => setTimeFor(null)} />
-    </>
+      <ReminderModal item={remindFor} tz={tz} onClose={() => setRemindFor(null)} />
+    </Card>
   );
 }
 
-function TodayRow({ item, tz, onSwap, onTime }: { item: TodayItem; tz: string; onSwap: () => void; onTime: () => void }) {
+function Tag({ children }: { children: React.ReactNode }) {
+  return <span className="mr-0.5 inline-flex h-4 items-center rounded bg-surface-3 px-1.5 text-[10px] font-medium text-muted">{children}</span>;
+}
+
+function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz: string; onSwap: () => void; onTime: () => void; onRemind: () => void }) {
   const toast = useToast();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -157,6 +188,7 @@ function TodayRow({ item, tz, onSwap, onTime }: { item: TodayItem; tz: string; o
     ...(!done && !skipped && item.swappable ? [{ label: "Swap for another", icon: Shuffle, onSelect: onSwap }] : []),
     ...(!done && !skipped ? [{ label: item.block ? "Change time" : "Set a time", icon: Clock, onSelect: onTime }] : []),
     ...(!done && !skipped && item.block && item.source !== "manual" ? [{ label: "Any time today", icon: X, onSelect: () => clearTime.mutate() }] : []),
+    ...(!done && !skipped ? [{ label: item.reminder ? "Change reminder" : "Remind me…", icon: Bell, onSelect: onRemind }] : []),
     ...(!done && !skipped ? [{ label: "Start focus", icon: Timer, onSelect: () => focus.mutate() }] : []),
     ...(!done && !skipped ? [{ label: "Skip today", icon: SkipForward, onSelect: () => skip.mutate() }] : []),
     ...(done && item.verifiedBy === "self" ? [{ label: "Mark not done", icon: Undo2, onSelect: () => uncheck.mutate() }] : []),
@@ -171,7 +203,8 @@ function TodayRow({ item, tz, onSwap, onTime }: { item: TodayItem; tz: string; o
           onClick={() => check.mutate()}
           aria-label={done ? `${item.title} is done` : item.check === "submission" ? `Check ${item.title} against your submissions` : `Mark ${item.title} done`}
           className={cx(
-            "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+            // The circle stays small; the invisible ::before ring gives a 44px tap area on phones.
+            "relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors before:absolute before:-inset-2.5 before:content-[''] desk:size-5",
             done ? "border-ok bg-ok text-accent-ink" : "border-line-strong hover:border-accent",
             skipped && "border-dashed",
           )}
@@ -187,13 +220,22 @@ function TodayRow({ item, tz, onSwap, onTime }: { item: TodayItem; tz: string; o
             <p className={cx("truncate text-sm font-medium", done && "text-muted line-through decoration-faint")}>{item.title}</p>
           )}
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
-            {item.source === "review" && <Repeat className="size-3" aria-hidden />}
+            <Tag>
+              {item.source !== "manual" && item.source !== "group" && item.source !== "review" && item.category !== "other" && <CategoryDot category={item.category} />}
+              {item.source === "review" && <Repeat className="mr-0.5 size-2.5" aria-hidden />}
+              {tagOf(item)}
+            </Tag>
             {item.label && <span className="truncate">{item.label}</span>}
             {item.label && <span aria-hidden>·</span>}
             <span className="tabular">
               {item.block ? `${fmtTime(item.block.startAt, tz)} · ` : item.dueAt ? `due ${fmtTime(item.dueAt, tz)} · ` : ""}
               {fmtMinutes(item.estMinutes)}
             </span>
+            {item.reminder && !done && !skipped && (
+              <span className="inline-flex items-center gap-0.5" title="Reminder set">
+                · <Bell className="size-3" aria-label="Reminder" /> {reminderLabel(item.reminder, tz)}
+              </span>
+            )}
             {skipped && <span>· skipped</span>}
             {done && item.verifiedBy === "submission" && (
               <span className="inline-flex items-center gap-0.5 text-ok">
@@ -284,6 +326,54 @@ function SetTimeModal({ item, tz, onClose }: { item: TodayItem | null; tz: strin
   );
 }
 
+const reminderLabel = (r: NonNullable<TodayItem["reminder"]>, tz: string) => (r.type === "daily" ? `${r.time} daily` : fmtTime(r.at, tz));
+
+/** "Remind me at…" for any item today: one notification at that time, only if it's still open. */
+function ReminderModal({ item, tz, onClose }: { item: TodayItem | null; tz: string; onClose: () => void }) {
+  const [time, setTime] = useState("19:00");
+  useEffect(() => {
+    if (!item) return;
+    setTime(item.reminder?.type === "at" ? fmtTime(item.reminder.at, tz) : item.reminder?.type === "daily" ? item.reminder.time : nextHalfHour(tz));
+  }, [item, tz]);
+  const save = useAction(
+    (reminder: unknown) => api.put<{ reminder: unknown }>(`/tasks/${item!.taskId}/reminder`, { reminder }),
+    { invalidate: TODAY_KEYS, onSuccess: onClose, success: (r) => (r.reminder ? `Reminder set for ${time}` : "Reminder removed") },
+  );
+  const daily = item?.reminder?.type === "daily";
+  return (
+    <Modal
+      open={!!item}
+      onClose={onClose}
+      title={item?.reminder ? "Change reminder" : "Remind me"}
+      footer={
+        <>
+          {item?.reminder && (
+            <Button variant="ghost" className="mr-auto" loading={save.isPending} onClick={() => save.mutate(null)}>
+              Remove reminder
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            loading={save.isPending}
+            onClick={() => save.mutate(daily ? { type: "daily", time } : { type: "at", at: localToIso(todayIn(tz), time, tz) })}
+          >
+            Save
+          </Button>
+        </>
+      }
+    >
+      <p className="mb-4 text-sm text-muted">
+        You'll get a notification about <span className="text-fg">{item?.title}</span> {daily ? "every day it's due" : "today"} at this time — only if it isn't done by then.
+      </p>
+      <Field label="Remind me at">{(id) => <div className="w-36"><Input id={id} type="time" value={time} onChange={(e) => setTime(e.target.value)} /></div>}</Field>
+      <p className="mt-3 text-xs text-faint">Needs browser notifications on (Settings → Notifications) to reach you outside the app.</p>
+    </Modal>
+  );
+}
+
 function nextHalfHour(tz: string) {
   const [h, m] = fmtTime(Date.now() + 30 * 60_000, tz).split(":").map(Number);
   const mm = m! < 30 ? 30 : 0;
@@ -324,7 +414,7 @@ function SwapModal({ item, onClose }: { item: TodayItem | null; onClose: () => v
   return (
     <Modal open={!!item} onClose={onClose} title="Swap for another">
       <p className="mb-3 text-sm text-muted">
-        Pick something else from {item ? (SECTION_LABEL[sectionOf(item)] ?? "this category") : ""} to do instead. It takes this item's slot; the skipped one stays first in its queue.
+        Pick another {item ? tagOf(item) : ""} item to do instead. It takes this item's slot; the skipped one stays first in its queue.
       </p>
       {options.isPending ? (
         <Spinner />
@@ -350,31 +440,6 @@ function SwapModal({ item, onClose }: { item: TodayItem | null; onClose: () => v
         </ul>
       )}
     </Modal>
-  );
-}
-
-/** The day's time blocks (auto-placed around classes and availability). */
-function DaySchedule({ day, tz }: { day: string; tz: string }) {
-  const view = useSchedule(day, day);
-  const [selected, setSelected] = useState<Block | null>(null);
-  return (
-    <>
-      <Card title="Schedule" padded={false} actions={<RegenerateButton />}>
-        <div className="p-3">
-          {view.isPending ? (
-            <Spinner />
-          ) : view.isError ? (
-            <ErrorState error={view.error} />
-          ) : view.data.blocks.length === 0 && view.data.commitments.length === 0 ? (
-            <p className="px-1 py-4 text-sm text-muted">Nothing at a fixed time. Problems and revisions are open all day — set a time on any item to put it here.</p>
-          ) : (
-            <Agenda view={view.data} days={[day]} onSelect={setSelected} tz={tz} />
-          )}
-        </div>
-      </Card>
-      {view.data && <UnscheduledCard view={view.data} />}
-      <BlockDetail block={selected} onClose={() => setSelected(null)} tz={tz} />
-    </>
   );
 }
 
@@ -411,10 +476,10 @@ function EmptyDay() {
   const me = useMe();
   const connected = (me.data?.connections ?? []).some((c) => c.status === "connected");
   return (
-    <Card>
+    <div className="py-2">
       <EmptyState
         title="Nothing planned for today"
-        description="Follow a roadmap and new items and revisions show up here every day, placed into your free time."
+        description="Add a task below, or follow a roadmap so new items and revisions show up here every day."
         action={
           <div className="flex flex-wrap justify-center gap-2">
             <Link to="/roadmaps">
@@ -428,6 +493,6 @@ function EmptyDay() {
           </div>
         }
       />
-    </Card>
+    </div>
   );
 }
