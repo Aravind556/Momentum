@@ -7,7 +7,7 @@ import {
   localDayBounds,
   preferencesSchema,
   type VerificationConfig,
-} from "@cadence/shared";
+} from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import type { Tx } from "../../core/db/index.js";
 import { profiles, scheduleBlocks, taskCompletions, tasks } from "../../core/db/schema.js";
@@ -127,6 +127,7 @@ export async function ensureDay(s: Services, userId: string, day: string, opts: 
         .values(
           fresh.map(({ source, c }) => ({
             ownerId: userId,
+            createdAt: new Date(s.now()),
             title: c.title,
             estimatedMinutes: c.estMinutes,
             priority: c.priority,

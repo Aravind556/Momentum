@@ -38,6 +38,49 @@ beforeAll(async () => {
 afterAll(async () => t.close());
 
 describe("roadmaps", () => {
+  it("accepts AI-style lists: bullets, numbering, titled links, markdown links and times", async () => {
+    const u = await signUp(t.app, "Sysdesign");
+    const created = await u.post("/api/roadmaps", {
+      title: "System design",
+      items: [
+        "## **Fundamentals**",
+        "1. CAP theorem (45m)",
+        "2. Consistent hashing — https://example.com/consistent-hashing (1h)",
+        "- [Load balancing](https://example.com/lb)",
+        "* https://leetcode.com/problems/two-sum/",
+        "- My warm-up: https://codeforces.com/problemset/problem/4/A (20m)",
+        "",
+        "# Case studies",
+        "- [ ] Design YouTube (1h 30m)",
+      ].join("\n"),
+      follow: { newPace: "decent" },
+    });
+    expect(created.status).toBe(201);
+    const items = created.body.items as Array<Record<string, unknown>>;
+    expect(items.map((i) => [i.title, i.url, i.estMinutes, i.section, i.category])).toEqual([
+      ["CAP theorem", null, 45, "Fundamentals", "other"],
+      ["Consistent hashing", "https://example.com/consistent-hashing", 60, "Fundamentals", "other"],
+      ["Load balancing", "https://example.com/lb", 40, "Fundamentals", "other"],
+      // Untitled problem link: the real title and difficulty-based estimate come from the platform.
+      ["Two Sum", "https://leetcode.com/problems/two-sum/", 25, "Fundamentals", "leetcode"],
+      // Own title and time win over the platform's, but it stays verifiable and gets its difficulty.
+      ["My warm-up", "https://codeforces.com/problemset/problem/4/A", 20, "Fundamentals", "codeforces"],
+      ["Design YouTube", null, 90, "Case studies", "other"],
+    ]);
+    expect(items[4]).toMatchObject({ platform: "codeforces", problemKey: "4A", difficulty: "800" });
+
+    // The owner can rename, re-time and move an item to another section.
+    const edited = await u.patch(`/api/roadmap-items/${items[0]!.id}`, { title: "CAP & PACELC", estMinutes: 50, section: "Case studies" });
+    expect(edited.status).toBe(200);
+    expect(edited.body).toMatchObject({ title: "CAP & PACELC", estMinutes: 50, section: "Case studies" });
+    // …and it moved to the end of "Case studies", so that section stays together.
+    const after = await u.get(`/api/roadmaps/${created.body.id}`);
+    expect(after.body.items.map((i: { title: string }) => i.title).slice(-2)).toEqual(["Design YouTube", "CAP & PACELC"]);
+    expect((await u.patch(`/api/roadmap-items/${items[0]!.id}`, { estMinutes: 2 })).status).toBe(400);
+    const other = await signUp(t.app, "Nosy");
+    expect((await other.patch(`/api/roadmap-items/${items[0]!.id}`, { title: "x" })).status).toBe(404);
+  });
+
   it("creates a roadmap from pasted lines, with sections, titles and per-user progress", async () => {
     const u = await signUp(t.app, "Owner");
     const created = await u.post("/api/roadmaps", {

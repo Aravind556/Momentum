@@ -14,7 +14,7 @@ export const USERNAME_PATTERN = /^[a-z0-9_]{3,24}$/;
  */
 export function createAuth(db: DB) {
   return betterAuth({
-    appName: "Cadence",
+    appName: "Momentum",
     secret: env.authSecret,
     baseURL: env.appUrl,
     basePath: "/api/auth",

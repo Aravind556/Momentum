@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
-import { addDays, instantToLocalDate, isoWeekday } from "@cadence/shared";
+import { addDays, instantToLocalDate, isoWeekday } from "@momentum/shared";
 import { notifications, profiles, scheduleBlocks, tasks } from "../../core/db/schema.js";
 import type { Services } from "../../core/context.js";
 import { notify } from "./notify.js";

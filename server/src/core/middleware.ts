@@ -39,7 +39,7 @@ export const uid = (req: Request): string => {
  */
 export function requireCsrfHeader(req: Request, _res: Response, next: NextFunction) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
-  if (req.get("x-requested-with") !== "cadence") return next(new HttpError(403, "Missing request header", "csrf"));
+  if (req.get("x-requested-with") !== "momentum") return next(new HttpError(403, "Missing request header", "csrf"));
   next();
 }
 

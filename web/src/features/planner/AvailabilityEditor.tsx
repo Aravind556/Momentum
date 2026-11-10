@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import type { AvailabilityInput } from "@cadence/shared";
+import type { AvailabilityInput } from "@momentum/shared";
 import { api } from "../../lib/api";
 import { SCHEDULE_KEYS, useAction } from "../../lib/hooks";
 import { Button, Card, cx, IconButton, Input, Segmented, Spinner } from "../../components/ui";

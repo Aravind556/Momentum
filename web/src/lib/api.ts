@@ -15,14 +15,14 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
     credentials: "same-origin",
     headers: {
       ...(body !== undefined ? { "content-type": "application/json" } : {}),
-      "x-requested-with": "cadence",
+      "x-requested-with": "momentum",
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  const notes = res.headers.get("x-cadence-notes");
+  const notes = res.headers.get("x-momentum-notes");
   if (notes) {
     try {
-      window.dispatchEvent(new CustomEvent("cadence:notes", { detail: JSON.parse(notes) }));
+      window.dispatchEvent(new CustomEvent("momentum:notes", { detail: JSON.parse(notes) }));
     } catch {
       /* malformed header: ignore */
     }

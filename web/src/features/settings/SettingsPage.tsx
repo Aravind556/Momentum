@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NOTIFICATION_CATEGORIES, type Preferences } from "@cadence/shared";
+import { NOTIFICATION_CATEGORIES, type Preferences } from "@momentum/shared";
 import { api } from "../../lib/api";
 import { authClient } from "../../lib/auth-client";
 import { disablePush, enablePush, pushState, type PushState } from "../../lib/push";
@@ -19,8 +19,8 @@ const NOTIF_LABELS: Record<string, string> = {
 
 export function SettingsPage() {
   return (
-    <div className="space-y-5">
-      <h1 className="text-lg font-semibold">Settings</h1>
+    <div className="space-y-3">
+      <h1 className="mb-5 text-lg font-semibold">Settings</h1>
       <ProfileSettings />
       <PlatformConnections />
       <PlanSettings />
@@ -51,7 +51,7 @@ function ProfileSettings() {
   })();
   if (!p) return <Spinner />;
   return (
-    <Card title="Profile" actions={<Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>Save</Button>}>
+    <Card collapsible title="Profile" actions={<Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>Save</Button>}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Display name">{(id) => <Input id={id} value={f.displayName} onChange={(e) => setF({ ...f, displayName: e.target.value })} />}</Field>
         <Field label="Username" hint="3–24 letters, numbers or underscores">{(id) => <Input id={id} value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} />}</Field>
@@ -87,7 +87,7 @@ function PlanSettings() {
   const rem = prefs.reminders;
   return (
     <>
-      <Card title="Daily plan">
+      <Card collapsible title="Daily plan">
         <div className="space-y-5">
           <Toggle
             checked={plan.autoPlan}
@@ -121,7 +121,7 @@ function PlanSettings() {
           </div>
         </div>
       </Card>
-      <Card title="Reminders">
+      <Card collapsible title="Reminders">
         <div className="space-y-5">
           <BrowserNotifications />
           <Toggle
@@ -249,7 +249,7 @@ function PreferenceSettings() {
   const save = useAction((patch: Partial<Preferences>) => api.patch("/me", { preferences: patch }), { invalidate: [["me"]], success: "Saved" });
   const [theme, setTheme] = useState<"system" | "dark" | "light">(() => {
     try {
-      return (localStorage.getItem("cadence-theme") as "dark" | "light" | null) ?? "system";
+      return (localStorage.getItem("momentum-theme") as "dark" | "light" | null) ?? "system";
     } catch {
       return "system";
     }
@@ -257,8 +257,8 @@ function PreferenceSettings() {
   const applyTheme = (t: "system" | "dark" | "light") => {
     setTheme(t);
     try {
-      if (t === "system") localStorage.removeItem("cadence-theme");
-      else localStorage.setItem("cadence-theme", t);
+      if (t === "system") localStorage.removeItem("momentum-theme");
+      else localStorage.setItem("momentum-theme", t);
     } catch {
       /* storage unavailable */
     }
@@ -268,7 +268,7 @@ function PreferenceSettings() {
   if (!prefs) return null;
   return (
     <>
-      <Card title="Scheduling & focus">
+      <Card collapsible title="Scheduling & focus">
         <div className="space-y-5">
           <div className="flex flex-wrap items-end gap-4">
             <Field label="Focus preset">
@@ -300,14 +300,14 @@ function PreferenceSettings() {
           />
         </div>
       </Card>
-      <Card title="Privacy">
+      <Card collapsible title="Privacy">
         <div className="space-y-4">
           <p className="text-xs text-muted">Group members never see your private task names, descriptions or schedule.</p>
           <Toggle checked={prefs.privacy.shareStreaks} onChange={(v) => save.mutate({ privacy: { ...prefs.privacy, shareStreaks: v } })} label="Share streak and streak milestones" />
           <Toggle checked={prefs.privacy.showOnLeaderboard} onChange={(v) => save.mutate({ privacy: { ...prefs.privacy, showOnLeaderboard: v } })} label="Appear on group leaderboards" description="Your points, completions and number of problems solved." />
         </div>
       </Card>
-      <Card title="Notifications">
+      <Card collapsible title="Notifications">
         <div className="space-y-4">
           {NOTIFICATION_CATEGORIES.map((c) => (
             <Toggle key={c} checked={prefs.notifications[c] !== false} onChange={(v) => save.mutate({ notifications: { ...prefs.notifications, [c]: v } })} label={NOTIF_LABELS[c] ?? c} />
@@ -315,7 +315,7 @@ function PreferenceSettings() {
           <p className="text-xs text-faint">These are in-app notifications. Email reminders are set under “Reminders”.</p>
         </div>
       </Card>
-      <Card title="Appearance">
+      <Card collapsible title="Appearance">
         <Segmented
           label="Theme"
           value={theme}
@@ -348,7 +348,7 @@ function SecuritySettings() {
     }
   };
   return (
-    <Card title="Security">
+    <Card collapsible title="Security">
       <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <Field label="Current password">{(id) => <Input id={id} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />}</Field>
         <Field label="New password">{(id) => <Input id={id} type="password" autoComplete="new-password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} />}</Field>

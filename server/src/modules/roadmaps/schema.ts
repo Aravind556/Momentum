@@ -1,5 +1,5 @@
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
-import type { FollowSettings } from "@cadence/shared";
+import type { FollowSettings } from "@momentum/shared";
 import { createdAt, id, ts, updatedAt } from "../../core/db/columns.js";
 import { user } from "../../core/db/core-schema.js";
 

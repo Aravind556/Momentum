@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { addDays, instantToLocalDate, localDayBounds, type FollowPatch } from "@cadence/shared";
+import { addDays, instantToLocalDate, localDayBounds, type FollowPatch } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import type { Tx } from "../../core/db/index.js";
 import { groupMembers, groups, itemProgress, roadmapFollows, roadmapItems, roadmaps, roadmapShares } from "../../core/db/schema.js";

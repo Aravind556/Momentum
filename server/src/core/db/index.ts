@@ -37,7 +37,9 @@ function pgConfig(url: string): { connectionString: string; ssl?: { rejectUnauth
   // Drop sslmode from the URL: newer node-postgres maps it to strict verification, which overrides `ssl`.
   const u = new URL(url);
   u.searchParams.delete("sslmode");
-  return { connectionString: u.toString(), ssl: { rejectUnauthorized: false } };
+  // Neon serves publicly trusted certificates, so verify them; Supabase's pooler needs verification off.
+  const verify = u.hostname.endsWith(".neon.tech");
+  return { connectionString: u.toString(), ssl: { rejectUnauthorized: verify } };
 }
 
 /**
@@ -71,6 +73,22 @@ export async function runMigrations(database: Database): Promise<void> {
   } else {
     const { migrate } = await import("drizzle-orm/pglite/migrator");
     await migrate(database.db as never, { migrationsFolder: folder });
+  }
+}
+
+/**
+ * Applies migrations for `database`. With a separate direct URL (Neon's DATABASE_URL_UNPOOLED),
+ * they run over a short-lived direct connection instead of the pooled one the app uses.
+ */
+export async function migrate(database: Database, opts: { databaseUrl?: string; migrationDatabaseUrl?: string }): Promise<void> {
+  if (database.driver !== "postgres" || !opts.migrationDatabaseUrl || opts.migrationDatabaseUrl === opts.databaseUrl) {
+    return runMigrations(database);
+  }
+  const direct = await openDatabase({ databaseUrl: opts.migrationDatabaseUrl });
+  try {
+    await runMigrations(direct);
+  } finally {
+    await direct.close();
   }
 }
 

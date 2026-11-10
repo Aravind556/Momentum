@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { DateTime } from "luxon";
-import { dateRange, localToInstant, parseHHMM, type CommitmentInput } from "@cadence/shared";
+import { dateRange, localToInstant, parseHHMM, type CommitmentInput } from "@momentum/shared";
 import type { DB, Tx } from "../../core/db/index.js";
 import { commitments } from "../../core/db/schema.js";
 import { notFound } from "../../core/http.js";

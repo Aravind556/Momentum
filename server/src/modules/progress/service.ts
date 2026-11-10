@@ -7,7 +7,7 @@ import {
   instantToLocalMinutes,
   localDayBounds,
   type DayState,
-} from "@cadence/shared";
+} from "@momentum/shared";
 import type { Tx } from "../../core/db/index.js";
 import { focusSessions, goals, profiles, scheduleBlocks, taskCompletions, tasks } from "../../core/db/schema.js";
 import { notFound } from "../../core/http.js";

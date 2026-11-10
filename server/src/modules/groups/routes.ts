@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { followPatchSchema, groupInputSchema, pointsConfigSchema } from "@cadence/shared";
+import { followPatchSchema, groupInputSchema, pointsConfigSchema } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { param, parse, queryString } from "../../core/http.js";
 import { sensitiveLimiter, uid } from "../../core/middleware.js";

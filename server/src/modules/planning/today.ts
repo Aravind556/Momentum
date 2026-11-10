@@ -1,5 +1,5 @@
 import { and, asc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
-import { instantToLocalDate, localDayBounds, localToInstant, parseHHMM, preferencesSchema } from "@cadence/shared";
+import { instantToLocalDate, localDayBounds, localToInstant, parseHHMM, preferencesSchema } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { integrationConnections, profiles, reviews, scheduleBlocks, taskCompletions, tasks } from "../../core/db/schema.js";
 import { badRequest, notFound } from "../../core/http.js";
@@ -206,6 +206,7 @@ export async function swapItem(s: Services, userId: string, taskId: string, pick
       .insert(tasks)
       .values({
         ownerId: userId,
+        createdAt: new Date(s.now()),
         title: option.title,
         estimatedMinutes: option.estMinutes,
         priority: option.priority,

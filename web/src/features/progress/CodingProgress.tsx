@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ExternalLink, Flame, Repeat } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { CATEGORY_META, difficultyBucket, type Category } from "@cadence/shared";
+import { CATEGORY_META, difficultyBucket, type Category } from "@momentum/shared";
 import { api } from "../../lib/api";
 import { fmtDate, relativeTime } from "../../lib/format";
 import { useAction } from "../../lib/hooks";

@@ -1,4 +1,4 @@
-import { REVIEW_RATINGS, SM2_NEW_CARD, sm2DueDate, sm2Review, type ReviewRating } from "@cadence/shared";
+import { REVIEW_RATINGS, SM2_NEW_CARD, sm2DueDate, sm2Review, type ReviewRating } from "@momentum/shared";
 
 /** The scheduling state stored on a review card. */
 export interface CardState {

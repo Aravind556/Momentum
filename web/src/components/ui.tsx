@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { Loader2, X } from "lucide-react";
+import { ChevronDown, Loader2, X } from "lucide-react";
 import {
   createContext,
   forwardRef,
@@ -117,7 +117,49 @@ export function Toggle({ checked, onChange, label, description, disabled }: { ch
   );
 }
 
-export function Card({ title, actions, children, className, padded = true }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; padded?: boolean }) {
+export function Card({
+  title,
+  actions,
+  children,
+  className,
+  padded = true,
+  collapsible = false,
+  defaultOpen = false,
+}: {
+  title?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  padded?: boolean;
+  /** Turns the header into a toggle that shows or hides the body (actions show only while open). */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const bodyId = useId();
+  if (collapsible) {
+    return (
+      <section className={cx("rounded-xl border border-line bg-surface", className)}>
+        <header className={cx("flex items-center gap-2 pr-4", open && "border-b border-line")}>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={bodyId}
+            onClick={() => setOpen((v) => !v)}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-4 py-3 text-left"
+          >
+            <ChevronDown className={cx("size-4 shrink-0 text-muted transition-transform", !open && "-rotate-90")} aria-hidden />
+            <h2 className="text-sm font-semibold text-fg">{title}</h2>
+          </button>
+          {open && actions && <div className="flex items-center gap-1">{actions}</div>}
+        </header>
+        {/* Hidden rather than unmounted, so unsaved edits survive closing a section. */}
+        <div id={bodyId} hidden={!open} className={padded ? "p-4" : ""}>
+          {children}
+        </div>
+      </section>
+    );
+  }
   return (
     <section className={cx("rounded-xl border border-line bg-surface", className)}>
       {(title || actions) && (

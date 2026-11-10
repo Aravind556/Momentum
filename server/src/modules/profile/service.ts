@@ -5,7 +5,7 @@ import {
   type AvailabilityInput,
   type AvailabilitySpec,
   type Preferences,
-} from "@cadence/shared";
+} from "@momentum/shared";
 import { randomBytes } from "node:crypto";
 import type { DB, Tx } from "../../core/db/index.js";
 import { availabilityOverrides, availabilityRules, groupMembers, integrationConnections, profiles } from "../../core/db/schema.js";

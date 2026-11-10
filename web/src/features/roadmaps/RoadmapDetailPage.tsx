@@ -1,17 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Check, CircleDashed, ExternalLink, RotateCcw, ShieldCheck, SkipForward, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, CircleDashed, ExternalLink, Pencil, RotateCcw, ShieldCheck, SkipForward, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { difficultyBucket } from "@cadence/shared";
+import { difficultyBucket } from "@momentum/shared";
 import { api } from "../../lib/api";
 import { fmtDate, fmtMinutes } from "../../lib/format";
 import { useAction } from "../../lib/hooks";
 import type { RoadmapDetail, RoadmapItem } from "../../lib/types";
-import { Badge, Button, Card, cx, EmptyState, ErrorState, Progress, Spinner, Textarea, Toggle } from "../../components/ui";
+import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Modal, Progress, Spinner, Textarea, Toggle } from "../../components/ui";
 import { RowMenu } from "../../components/RowMenu";
 import { CategoryDot } from "./CategoryDot";
 import { DEFAULT_FOLLOW, FollowSettingsPicker, type FollowDraft } from "./FollowSettingsPicker";
 import { paceSummary } from "./RoadmapsPage";
+import { AiPromptHelp } from "./AiPromptHelp";
 import { ShareToGroups } from "./ShareToGroups";
 
 export function RoadmapDetailPage() {
@@ -109,6 +110,7 @@ function ItemRow({ r, item, isNext }: { r: RoadmapDetail; item: RoadmapItem; isN
     },
     { invalidate: [["roadmap", r.id]] },
   );
+  const [editing, setEditing] = useState(false);
   const index = r.items.indexOf(item);
   const isDone = item.status === "done";
   const bucket = item.difficulty ? difficultyBucket(item.difficulty) : null;
@@ -129,7 +131,7 @@ function ItemRow({ r, item, isNext }: { r: RoadmapDetail; item: RoadmapItem; isN
         </div>
         <p className="flex items-center gap-1.5 text-xs text-muted">
           <CategoryDot category={item.category} />
-          {item.platform ? (item.difficulty && bucket !== "Unknown" ? (/^\d+$/.test(item.difficulty) ? `Rated ${item.difficulty}` : item.difficulty) : "Problem") : item.category === "other" ? "Topic" : "Self-check"}
+          {item.platform ? (item.difficulty && bucket !== "Unknown" ? (/^\d+$/.test(item.difficulty) ? `Rated ${item.difficulty}` : item.difficulty) : "Problem") : item.category === "other" ? (item.url ? "Link" : "Topic") : "Self-check"}
           {" · "}
           {fmtMinutes(item.estMinutes)}
           {isDone && item.verifiedBy === "submission" && (
@@ -151,6 +153,7 @@ function ItemRow({ r, item, isNext }: { r: RoadmapDetail; item: RoadmapItem; isN
           ...(item.status !== "queued" && r.follow ? [{ label: "Put back in queue", icon: RotateCcw, onSelect: () => requeue.mutate() }] : []),
           ...(r.isOwner && !r.archived
             ? [
+                { label: "Edit item", icon: Pencil, onSelect: () => setEditing(true) },
                 ...(index > 0 ? [{ label: "Move up", icon: ArrowUp, onSelect: () => move.mutate(-1) }] : []),
                 ...(index < r.items.length - 1 ? [{ label: "Move down", icon: ArrowDown, onSelect: () => move.mutate(1) }] : []),
                 { label: "Delete item", icon: Trash2, danger: true, onSelect: () => confirm(`Delete "${item.title}" for everyone following?`) && remove.mutate() },
@@ -158,7 +161,66 @@ function ItemRow({ r, item, isNext }: { r: RoadmapDetail; item: RoadmapItem; isN
             : []),
         ]}
       />
+      {editing && <EditItemModal r={r} item={item} onClose={() => setEditing(false)} />}
     </li>
+  );
+}
+
+/** Owner edits: title, planned time and section (changes apply to everyone following). */
+function EditItemModal({ r, item, onClose }: { r: RoadmapDetail; item: RoadmapItem; onClose: () => void }) {
+  const [title, setTitle] = useState(item.title);
+  const [minutes, setMinutes] = useState(String(item.estMinutes));
+  const [section, setSection] = useState(item.section ?? "");
+  const sections = [...new Set(r.items.map((i) => i.section).filter((x): x is string => !!x))];
+  const mins = Number(minutes);
+  const valid = title.trim().length > 0 && Number.isInteger(mins) && mins >= 5 && mins <= 600;
+  const save = useAction(
+    () => api.patch(`/roadmap-items/${item.id}`, { title: title.trim(), estMinutes: mins, section: section.trim() || null }),
+    { invalidate: [["roadmap", r.id], ["roadmaps"], ["forecast"], ["today"]], success: "Item updated", onSuccess: onClose },
+  );
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Edit item"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" loading={save.isPending} disabled={!valid} onClick={() => save.mutate()}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid) save.mutate();
+        }}
+      >
+        <Field label="Title">{(id) => <Input id={id} value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} autoFocus />}</Field>
+        <Field label="Planned time (minutes)" hint="5–600. Used for your daily study limit and scheduling." error={minutes && !valid && title.trim() ? "Enter a whole number from 5 to 600" : null}>
+          {(id) => <Input id={id} type="number" inputMode="numeric" min={5} max={600} step={5} className="w-32" value={minutes} onChange={(e) => setMinutes(e.target.value)} />}
+        </Field>
+        <Field label="Section" hint="Pick an existing one or type a new name. Leave empty for none.">
+          {(id) => (
+            <>
+              <Input id={id} list={`${id}-sections`} value={section} maxLength={80} onChange={(e) => setSection(e.target.value)} />
+              <datalist id={`${id}-sections`}>
+                {sections.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            </>
+          )}
+        </Field>
+        {r.followers > 1 && <p className="text-xs text-muted">Changes apply to all {r.followers} people following this roadmap.</p>}
+        <button type="submit" hidden />
+      </form>
+    </Modal>
   );
 }
 
@@ -231,13 +293,19 @@ function AddItems({ roadmapId }: { roadmapId: string }) {
   return (
     <Card title="Add items">
       <Textarea
-        rows={3}
+        rows={4}
         value={text}
         onChange={(e) => setText(e.target.value)}
         aria-label="Items to add, one per line"
-        placeholder="One per line: problem links, other links, or topics. “# Heading” starts a section."
+        placeholder={"# System design\nConsistent hashing — https://example.com/article (45m)\n- https://leetcode.com/problems/lru-cache/\nDesign YouTube (1h 30m)"}
         className="font-mono text-[13px]"
       />
+      <p className="mt-2 text-xs text-muted">
+        One item per line: a problem link, any link, or a topic. Write a title before a link (or use <code>[title](link)</code>) and a time at the end like{" "}
+        <code>(45m)</code> or <code>(1h 30m)</code>. <code># Heading</code> starts a section. Bullets and numbering are ignored, so lists from ChatGPT or
+        notes paste as they are.
+      </p>
+      <AiPromptHelp className="mt-2" />
       <div className="mt-3 flex justify-end">
         <Button variant="primary" size="sm" disabled={!text.trim()} loading={add.isPending} onClick={() => add.mutate()}>
           Add

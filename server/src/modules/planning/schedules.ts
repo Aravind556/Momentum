@@ -15,7 +15,7 @@ import {
   type SchedulerTask,
   type UnscheduledTask,
   type ScheduleWarning,
-} from "@cadence/shared";
+} from "@momentum/shared";
 import type { DB, Tx } from "../../core/db/index.js";
 import { profiles, scheduleBlocks, taskCompletions, tasks } from "../../core/db/schema.js";
 import { badRequest, conflict, notFound } from "../../core/http.js";

@@ -55,9 +55,12 @@ export function Layout() {
         Skip to content
       </a>
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface md:flex">
-        <div className="flex items-center gap-2 px-4 py-4">
-          <CircleDot className="size-5 text-accent" aria-hidden />
-          <span className="text-[15px] font-semibold tracking-tight">Cadence</span>
+        <div className="px-4 py-4">
+          <div className="flex items-center gap-2">
+            <CircleDot className="size-5 text-accent" aria-hidden />
+            <span className="text-[15px] font-semibold tracking-tight">Momentum</span>
+          </div>
+          <p className="mt-0.5 pl-7 text-xs text-muted">Make every day count.</p>
         </div>
         <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-2">
           {NAV.map((n) => (
@@ -94,7 +97,7 @@ export function Layout() {
         <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-line bg-bg/90 px-4 backdrop-blur md:justify-end">
           <span className="flex items-center gap-2 md:hidden">
             <CircleDot className="size-5 text-accent" aria-hidden />
-            <span className="font-semibold">Cadence</span>
+            <span className="font-semibold">Momentum</span>
           </span>
           <div className="flex items-center gap-1">
             {active.data?.session && (

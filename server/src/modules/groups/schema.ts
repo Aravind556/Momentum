@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
-import type { PointsConfig } from "@cadence/shared";
+import type { PointsConfig } from "@momentum/shared";
 import { createdAt, id, ts } from "../../core/db/columns.js";
 import { user } from "../../core/db/core-schema.js";
 import { roadmaps } from "../roadmaps/schema.js";

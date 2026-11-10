@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { REVIEW_RATINGS, type ReviewRating } from "@cadence/shared";
+import { REVIEW_RATINGS, type ReviewRating } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { param, parse } from "../../core/http.js";
 import { uid } from "../../core/middleware.js";

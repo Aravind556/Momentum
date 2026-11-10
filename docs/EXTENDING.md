@@ -1,6 +1,6 @@
-# Extending Cadence
+# Extending Momentum
 
-Cadence is built so new features are **added**, not threaded through existing code. Every recipe below is "write one implementation, register it in one place". Each section says which files to touch, what to implement, and how to test it.
+Momentum is built so new features are **added**, not threaded through existing code. Every recipe below is "write one implementation, register it in one place". Each section says which files to touch, what to implement, and how to test it.
 
 General rules:
 - **Server features live in `server/src/modules/<name>/`**, with `schema.ts`, service files, `routes.ts` and `index.ts`. `index.ts` exports an `AppModule` (routes, jobs, `register` hook); add it to `modules/index.ts`. New tables also get one export line in `core/db/schema.ts`. Then run `npm run db:generate`.

@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { availabilitySchema, profileUpdateSchema } from "@cadence/shared";
+import { availabilitySchema, profileUpdateSchema } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { parse } from "../../core/http.js";
 import { uid } from "../../core/middleware.js";

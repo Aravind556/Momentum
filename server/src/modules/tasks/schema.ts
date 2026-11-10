@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, uniqueIndex } from "drizzle-orm/pg-core";
-import type { Recurrence, TimeRange, VerificationConfig } from "@cadence/shared";
+import type { Recurrence, TimeRange, VerificationConfig } from "@momentum/shared";
 import { createdAt, id, ts, updatedAt } from "../../core/db/columns.js";
 import { user } from "../../core/db/core-schema.js";
 

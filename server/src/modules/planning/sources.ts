@@ -1,4 +1,4 @@
-import type { Preferences, VerificationConfig } from "@cadence/shared";
+import type { Preferences, VerificationConfig } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import type { Tx } from "../../core/db/index.js";
 import type { Task } from "../tasks/tasks.js";

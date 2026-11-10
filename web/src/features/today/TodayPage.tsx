@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarPlus, Check, Clock, Flame, Loader2, Play, Repeat, ShieldCheck, Shuffle, SkipForward, Timer, Undo2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CATEGORY_META, type Category } from "@cadence/shared";
+import { CATEGORY_META, type Category } from "@momentum/shared";
 import { api, errorMessage } from "../../lib/api";
 import { fmtDate, fmtMinutes, fmtTime, todayIn } from "../../lib/format";
 import { SCHEDULE_KEYS, useAction, useMe, useTz } from "../../lib/hooks";

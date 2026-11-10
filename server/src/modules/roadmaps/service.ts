@@ -5,12 +5,13 @@ import {
   followSettingsSchema,
   instantToLocalDate,
   parseProblemUrl,
+  parseRoadmapLine,
   projectedFinish,
   revisionConfig,
   type Category,
   type FollowPatch,
   type FollowSettings,
-} from "@cadence/shared";
+} from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import type { Tx } from "../../core/db/index.js";
 import { externalEvents, integrationConnections, itemProgress, roadmapFollows, roadmapItems, roadmaps } from "../../core/db/schema.js";
@@ -196,47 +197,59 @@ interface NewItem {
 }
 
 /**
- * Adds items from pasted text, one per line: a problem link, any other link, or plain text.
- * "# Heading" lines set the section for the lines below. A YouTube playlist link adds every video.
- * Titles of LeetCode/Codeforces problems are filled in in the background (provider rate limits).
+ * Adds items from pasted text, one per line (see `parseRoadmapLine` for the format): problem links,
+ * other links and topics, each with an optional title and "(45m)" time; "# Heading" starts a section.
+ * Bullets and numbering are ignored. A YouTube playlist link adds every video.
+ * Titles of LeetCode/Codeforces problems are filled in in the background (provider rate limits),
+ * except where the line gave its own title or time.
  */
 export async function addItems(s: Services, userId: string, roadmapId: string, text: string) {
   await requireOwner(s.db, userId, roadmapId);
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (!lines.length) throw badRequest("Paste at least one link or line");
+  const lines = text.split(/\r?\n/).map(parseRoadmapLine).filter((l) => l !== null);
+  if (!lines.some((l) => l.kind === "item")) throw badRequest("Paste at least one link or line");
   const items: NewItem[] = [];
+  /** Per item (same index as `items`): what the line set itself, so enrichment won't overwrite it. */
+  const own: Array<{ title: boolean; minutes: boolean }> = [];
+  const push = (it: NewItem, title: boolean, minutes: boolean) => {
+    items.push(it);
+    own.push({ title, minutes });
+  };
   let section: string | null = null;
   for (const line of lines) {
-    const heading = line.match(/^#+\s*(.+)$/);
-    if (heading) {
-      section = heading[1]!.slice(0, 80);
+    if (line.kind === "heading") {
+      section = line.title.slice(0, 80);
       continue;
     }
-    const playlistId = parsePlaylistId(line);
+    const playlistId = line.url ? parsePlaylistId(line.url) : null;
     if (playlistId) {
       const pl = await fetchPlaylist(playlistId, s.platforms.fetch).catch((err: Error) => {
         throw badRequest(err.message, "youtube_unavailable");
       });
       for (const v of pl.items) {
-        items.push({ title: v.title, url: v.url, category: "other", platform: null, problemKey: null, difficulty: null, estMinutes: Math.max(5, Math.round(v.durationSeconds / 60)), section: section ?? pl.title.slice(0, 80) });
+        push({ title: v.title, url: v.url, category: "other", platform: null, problemKey: null, difficulty: null, estMinutes: Math.max(5, Math.round(v.durationSeconds / 60)), section: section ?? pl.title.slice(0, 80) }, true, true);
       }
       continue;
     }
-    const p = parseProblemUrl(line);
+    const p = line.url ? parseProblemUrl(line.url) : null;
     if (p) {
       const verifiable = CATEGORY_META[p.category].verifiable && !!s.platforms.get(p.category);
-      items.push({
-        title: p.titleGuess.slice(0, 200),
-        url: p.url,
-        category: p.category,
-        platform: verifiable ? p.category : null,
-        problemKey: p.key,
-        difficulty: null,
-        estMinutes: defaultMinutes(null),
-        section,
-      });
+      push(
+        {
+          title: (line.title ?? p.titleGuess).slice(0, 200),
+          url: p.url,
+          category: p.category,
+          platform: verifiable ? p.category : null,
+          problemKey: p.key,
+          difficulty: null,
+          estMinutes: line.minutes ?? defaultMinutes(null),
+          section,
+        },
+        line.title !== null,
+        line.minutes !== null,
+      );
     } else {
-      items.push({ title: line.slice(0, 200), url: null, category: "other", platform: null, problemKey: null, difficulty: null, estMinutes: 30, section });
+      const title = line.title ?? line.url ?? "";
+      push({ title: title.slice(0, 200), url: null, category: "other", platform: null, problemKey: null, difficulty: null, estMinutes: line.minutes ?? 30, section }, true, true);
     }
   }
   const [{ n } = { n: 0 }] = await s.db.select({ n: sql<number>`count(*)` }).from(roadmapItems).where(eq(roadmapItems.roadmapId, roadmapId));
@@ -245,13 +258,16 @@ export async function addItems(s: Services, userId: string, roadmapId: string, t
     .select({ maxPos: sql<number>`coalesce(max(${roadmapItems.position}), -1)` })
     .from(roadmapItems)
     .where(eq(roadmapItems.roadmapId, roadmapId));
+  const start = Number(maxPos) + 1;
   const inserted = items.length
     ? await s.db
         .insert(roadmapItems)
-        .values(items.map((it, i) => ({ ...it, roadmapId, position: Number(maxPos) + 1 + i })))
+        .values(items.map((it, i) => ({ ...it, roadmapId, position: start + i })))
         .returning()
     : [];
-  const enrich = enrichItems(s, inserted.filter((i) => i.platform && i.problemKey));
+  // Match rows back to their lines by position (RETURNING order isn't guaranteed).
+  const toEnrich = inserted.filter((i) => i.platform && i.problemKey).map((item) => ({ item, own: own[item.position - start]! }));
+  const enrich = enrichItems(s, toEnrich);
   // Small additions are resolved before responding; large pastes finish in the background.
   if (inserted.length <= 5) await enrich;
   else enrich.catch((err) => console.error("[roadmaps] enrich failed:", err instanceof Error ? err.message : err));
@@ -259,14 +275,19 @@ export async function addItems(s: Services, userId: string, roadmapId: string, t
   return { added: inserted.length };
 }
 
-/** Replaces guessed titles with real titles, difficulty and estimates from the platform. */
-async function enrichItems(s: Services, items: RoadmapItem[]) {
-  for (const it of items) {
+/** Fills in real titles, difficulty and estimates from the platform, keeping what the line set itself. */
+async function enrichItems(s: Services, items: Array<{ item: RoadmapItem; own: { title: boolean; minutes: boolean } }>) {
+  for (const { item: it, own } of items) {
     const info = await s.platforms.get(it.platform!)?.problemInfo?.(it.problemKey!);
     if (!info) continue;
     await s.db
       .update(roadmapItems)
-      .set({ title: info.title, difficulty: info.difficulty, estMinutes: defaultMinutes(info.difficulty), url: info.url })
+      .set({
+        difficulty: info.difficulty,
+        url: info.url,
+        ...(own.title ? {} : { title: info.title }),
+        ...(own.minutes ? {} : { estMinutes: defaultMinutes(info.difficulty) }),
+      })
       .where(eq(roadmapItems.id, it.id));
   }
 }
@@ -275,9 +296,24 @@ export async function updateItem(s: Services, userId: string, itemId: string, pa
   const item = await s.db.query.roadmapItems.findFirst({ where: eq(roadmapItems.id, itemId) });
   if (!item) throw notFound("Item");
   await requireOwner(s.db, userId, item.roadmapId);
-  const [row] = await s.db.update(roadmapItems).set(patch).where(eq(roadmapItems.id, itemId)).returning();
+  const row = await s.db.transaction(async (tx) => {
+    const [updated] = await tx.update(roadmapItems).set(patch).where(eq(roadmapItems.id, itemId)).returning();
+    // Moved to another section that already exists: place it at the end of that section, so the
+    // section stays in one piece instead of appearing twice in the list.
+    if (patch.section !== undefined && patch.section !== item.section && patch.section !== null) {
+      const ordered = await tx.select({ id: roadmapItems.id, section: roadmapItems.section }).from(roadmapItems).where(eq(roadmapItems.roadmapId, item.roadmapId)).orderBy(asc(roadmapItems.position));
+      const rest = ordered.filter((i) => i.id !== itemId);
+      const lastInSection = rest.map((i) => i.section).lastIndexOf(patch.section);
+      if (lastInSection >= 0) {
+        rest.splice(lastInSection + 1, 0, { id: itemId, section: patch.section });
+        for (const [i, it] of rest.entries()) await tx.update(roadmapItems).set({ position: i }).where(eq(roadmapItems.id, it.id));
+        updated!.position = rest.findIndex((i) => i.id === itemId);
+      }
+    }
+    return updated!;
+  });
   await s.events.emit("roadmap.items_changed", { roadmapId: item.roadmapId });
-  return row!;
+  return row;
 }
 
 export async function deleteItem(s: Services, userId: string, itemId: string) {

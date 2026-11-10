@@ -1,4 +1,4 @@
-import { isoWeekday, type Recurrence } from "@cadence/shared";
+import { isoWeekday, type Recurrence } from "@momentum/shared";
 
 /** Whether a recurring rule produces an occurrence on a local date. */
 export function occursOn(rec: Recurrence, date: string): boolean {

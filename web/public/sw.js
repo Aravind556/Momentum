@@ -1,15 +1,15 @@
-/* Cadence service worker: shows reminder notifications and opens the app when one is clicked. */
+/* Momentum service worker: shows reminder notifications and opens the app when one is clicked. */
 self.addEventListener("push", (event) => {
   let data = {};
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "Cadence", body: event.data ? event.data.text() : "" };
+    data = { title: "Momentum", body: event.data ? event.data.text() : "" };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || "Cadence", {
+    self.registration.showNotification(data.title || "Momentum", {
       body: data.body || "",
-      tag: data.tag || "cadence",
+      tag: data.tag || "momentum",
       renotify: true,
       icon: "/icon.svg",
       badge: "/icon.svg",

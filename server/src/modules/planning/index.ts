@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { instantToLocalDate } from "@cadence/shared";
+import { instantToLocalDate } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { profiles, roadmapFollows, tasks } from "../../core/db/schema.js";
 import type { AppModule } from "../../core/module.js";

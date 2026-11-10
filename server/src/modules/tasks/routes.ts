@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { completeTaskSchema, goalInputSchema, quickTaskSchema, taskInputSchema } from "@cadence/shared";
+import { completeTaskSchema, goalInputSchema, quickTaskSchema, taskInputSchema } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { param, parse, queryString } from "../../core/http.js";
 import { uid } from "../../core/middleware.js";
@@ -29,14 +29,14 @@ export function taskRoutes(r: Router, s: Services) {
     );
   });
   r.post("/tasks", async (req, res) => {
-    const task = await tasks.createTask(s.db, uid(req), parse(taskInputSchema, req.body));
+    const task = await tasks.createTask(s.db, uid(req), parse(taskInputSchema, req.body), { createdAt: new Date(s.now()) });
     await s.events.emit("task.changed", { userId: uid(req), taskId: task.id });
     res.status(201).json(task);
   });
   r.post("/tasks/quick", async (req, res) => {
     const q = parse(quickTaskSchema, req.body);
     const body = parse(taskInputSchema, { title: q.title, estimatedMinutes: q.estimatedMinutes, splittable: q.estimatedMinutes > 60 });
-    const task = await tasks.createTask(s.db, uid(req), body);
+    const task = await tasks.createTask(s.db, uid(req), body, { createdAt: new Date(s.now()) });
     await s.events.emit("task.changed", { userId: uid(req), taskId: task.id });
     res.status(201).json(task);
   });

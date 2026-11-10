@@ -66,9 +66,9 @@ export function FocusPage() {
   }, [session, countBackground, act]);
 
   useEffect(() => {
-    document.title = session ? `${fmtClock(live.remaining)} · ${session.taskTitle ?? "Focus"} — Cadence` : "Cadence";
+    document.title = session ? `${fmtClock(live.remaining)} · ${session.taskTitle ?? "Focus"} — Momentum` : "Momentum";
     return () => {
-      document.title = "Cadence";
+      document.title = "Momentum";
     };
   });
 

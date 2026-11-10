@@ -11,7 +11,7 @@ import { Badge, Button, Card, ErrorState, Input, Spinner } from "../../component
 export function PlatformConnections() {
   const q = useQuery({ queryKey: ["integrations"], queryFn: () => api.get<Platform[]>("/integrations") });
   return (
-    <Card title="Coding platforms">
+    <Card collapsible title="Coding platforms">
       <p className="mb-4 text-sm text-muted">Connect your public handle. Problems are only marked done after a matching accepted submission is found — no password needed.</p>
       {q.isPending ? <Spinner /> : q.isError ? <ErrorState error={q.error} /> : (
         <ul className="divide-y divide-line">

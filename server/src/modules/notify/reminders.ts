@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, ne, notInArray, sql } from "drizzle-orm";
-import { instantToLocalDate, instantToLocalMinutes, localDayBounds, preferencesSchema } from "@cadence/shared";
+import { instantToLocalDate, instantToLocalMinutes, localDayBounds, preferencesSchema } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { env } from "../../core/env.js";
 import { emailLog, integrationConnections, profiles, taskCompletions, tasks, user } from "../../core/db/schema.js";
@@ -126,14 +126,14 @@ export async function sendReminders(s: Services) {
             summary: `Last reminder: ${n} task${n === 1 ? "" : "s"} still open today`,
             lines: [`Hi ${p.name},`, `Last reminder for today — ${n === 1 ? "this is" : "these are"} still open:`, ...items],
             link: `${env.appUrl}/`,
-            tag: "cadence-reminder",
+            tag: "momentum-reminder",
           }
         : {
             subject: `${n} task${n === 1 ? "" : "s"} left today`,
             summary: `${n} task${n === 1 ? "" : "s"} left today`,
             lines: items,
             link: `${env.appUrl}/`,
-            tag: "cadence-reminder",
+            tag: "momentum-reminder",
           },
       final ? [...(r.email ? ["email"] : []), ...(r.push ? ["push"] : []), "in_app"] : ["push"],
     );

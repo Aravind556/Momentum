@@ -30,10 +30,10 @@ describe("dynamic re-planning", () => {
     const { u, roadmapId } = await setup("Replanner", { newPace: "decent" });
     expect((await u.get("/api/today")).body.items).toHaveLength(1);
     const res = await u.patch(`/api/roadmaps/${roadmapId}/follow`, { newPace: "frequent" });
-    expect(JSON.parse(res.headers["x-cadence-notes"] ?? "null")).toEqual({ plan: { added: 1, removed: 0, deferred: 0 } });
+    expect(JSON.parse(res.headers["x-momentum-notes"] ?? "null")).toEqual({ plan: { added: 1, removed: 0, deferred: 0 } });
     // A change with no effect on today sends no note.
     const quiet = await u.patch(`/api/roadmaps/${roadmapId}/follow`, { preferredTime: null });
-    expect(quiet.headers["x-cadence-notes"]).toBeUndefined();
+    expect(quiet.headers["x-momentum-notes"]).toBeUndefined();
   });
 
   it("keeps blocks the user moved when availability changes, and re-places the rest", async () => {

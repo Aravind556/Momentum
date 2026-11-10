@@ -76,7 +76,7 @@ export const pushNotifier: Notifier = {
       return;
     }
     if (!vapidKeys()) return;
-    const payload = JSON.stringify({ title: msg.subject, body, url: msg.link ?? "/", tag: msg.tag ?? "cadence" });
+    const payload = JSON.stringify({ title: msg.subject, body, url: msg.link ?? "/", tag: msg.tag ?? "momentum" });
     for (const sub of subs) {
       try {
         await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload, { TTL: 4 * 3600 });

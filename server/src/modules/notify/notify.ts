@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import type { NotificationCategory } from "@cadence/shared";
+import type { NotificationCategory } from "@momentum/shared";
 import type { Tx } from "../../core/db/index.js";
 import { notifications, profiles } from "../../core/db/schema.js";
 

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, Repeat, Users } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { PRESET_COPY, type PacePreset } from "@cadence/shared";
+import { PRESET_COPY, type PacePreset } from "@momentum/shared";
 import { api } from "../../lib/api";
 import { fmtDate, todayIn } from "../../lib/format";
 import { useAction, useTz } from "../../lib/hooks";
@@ -10,6 +10,7 @@ import type { ReviewCard, RoadmapSummary } from "../../lib/types";
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Input, Modal, Progress, Segmented, Spinner, Textarea } from "../../components/ui";
 import { DEFAULT_FOLLOW, FollowSettingsPicker, type FollowDraft } from "./FollowSettingsPicker";
 import { CategoryDot } from "./CategoryDot";
+import { AiPromptHelp } from "./AiPromptHelp";
 
 type Tab = "following" | "mine" | "revisions";
 
@@ -140,7 +141,7 @@ function NewRoadmapModal({ open, onClose }: { open: boolean; onClose: () => void
     >
       <div className="space-y-5">
         <Field label="Name">{(id) => <Input id={id} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Graphs — Striver sheet" maxLength={120} />}</Field>
-        <Field label="Items" hint="One per line: a LeetCode / Codeforces / CodeChef link, any other link, or plain text. “# Heading” starts a section. A YouTube playlist link adds every video.">
+        <Field label="Items" hint="One per line: a LeetCode / Codeforces / CodeChef link, any other link, or a topic. Add a title before a link and a time at the end, like “(45m)”. “# Heading” starts a section; bullets and numbering are ignored. A YouTube playlist link adds every video.">
           {(id) => (
             <Textarea
               id={id}
@@ -148,10 +149,11 @@ function NewRoadmapModal({ open, onClose }: { open: boolean; onClose: () => void
               value={items}
               onChange={(e) => setItems(e.target.value)}
               className="font-mono text-[13px]"
-              placeholder={"# BFS\nhttps://leetcode.com/problems/rotting-oranges/\nhttps://codeforces.com/problemset/problem/1037/D\n# Theory\nRead CP-Algorithms: Dijkstra"}
+              placeholder={"# BFS\nhttps://leetcode.com/problems/rotting-oranges/\nhttps://codeforces.com/problemset/problem/1037/D\n# Theory\nDijkstra — https://cp-algorithms.com/graph/dijkstra.html (45m)\nRevise shortest paths (30m)"}
             />
           )}
         </Field>
+        <AiPromptHelp className="-mt-3" />
         <div>
           <p className="mb-2 text-[13px] font-medium text-muted">How do you want to learn it?</p>
           <FollowSettingsPicker value={follow} onChange={setFollow} />

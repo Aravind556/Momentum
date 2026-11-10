@@ -11,3 +11,4 @@ export * from "./platforms.js";
 export * from "./sm2.js";
 export * from "./pace.js";
 export * from "./points.js";
+export * from "./roadmap-lines.js";

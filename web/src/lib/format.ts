@@ -1,4 +1,4 @@
-import type { VerificationConfig } from "@cadence/shared";
+import type { VerificationConfig } from "@momentum/shared";
 /** Formatting helpers that always render in the user's configured timezone. */
 
 export function fmtTime(iso: string | number, tz: string): string {

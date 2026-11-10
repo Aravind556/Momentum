@@ -44,9 +44,12 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex items-center gap-2">
-          <CircleDot className="size-6 text-accent" aria-hidden />
-          <span className="text-lg font-semibold tracking-tight">Cadence</span>
+        <div className="mb-8">
+          <div className="flex items-center gap-2">
+            <CircleDot className="size-6 text-accent" aria-hidden />
+            <span className="text-lg font-semibold tracking-tight">Momentum</span>
+          </div>
+          <p className="mt-1 text-sm text-muted">Make every day count.</p>
         </div>
         <h1 className="text-xl font-semibold">{signup ? "Create your account" : "Welcome back"}</h1>
         <p className="mt-1 mb-6 text-sm text-muted">{signup ? "Plan your learning, and study with your friends." : "Sign in to see today's plan."}</p>

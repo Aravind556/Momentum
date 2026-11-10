@@ -1,5 +1,5 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { instantToLocalDate, type VerificationStatus } from "@cadence/shared";
+import { instantToLocalDate, type VerificationStatus } from "@momentum/shared";
 import type { Tx } from "../../core/db/index.js";
 import { integrationConnections, profiles, scheduleBlocks, taskCompletions, tasks } from "../../core/db/schema.js";
 import { badRequest } from "../../core/http.js";

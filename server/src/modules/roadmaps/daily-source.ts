@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { newItemsOn, REVIEW_RATINGS, revisionConfig, SM2_NEW_CARD, sm2DueDate, sm2Review, type FollowSettings } from "@cadence/shared";
+import { newItemsOn, REVIEW_RATINGS, revisionConfig, SM2_NEW_CARD, sm2DueDate, sm2Review, type FollowSettings } from "@momentum/shared";
 import type { Tx } from "../../core/db/index.js";
 import { externalEvents, itemProgress, reviews, roadmapFollows, roadmapItems, roadmaps, tasks } from "../../core/db/schema.js";
 import type { DailyCandidate, DailySource, DayContext, ForecastEntry } from "../planning/sources.js";

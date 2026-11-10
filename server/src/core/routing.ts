@@ -1,6 +1,6 @@
 import type { Request } from "express";
 import { z } from "zod";
-import { instantToLocalDate } from "@cadence/shared";
+import { instantToLocalDate } from "@momentum/shared";
 import type { Services } from "./context.js";
 
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

@@ -1,4 +1,4 @@
-import type { VerificationConfig } from "@cadence/shared";
+import type { VerificationConfig } from "@momentum/shared";
 
 export type FetchFn = typeof fetch;
 

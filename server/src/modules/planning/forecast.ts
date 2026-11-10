@@ -1,5 +1,5 @@
 import { and, eq, notInArray } from "drizzle-orm";
-import { addDays, instantToLocalDate, localDayBounds, preferencesSchema } from "@cadence/shared";
+import { addDays, instantToLocalDate, localDayBounds, preferencesSchema } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { profiles, tasks } from "../../core/db/schema.js";
 import { notFound } from "../../core/http.js";

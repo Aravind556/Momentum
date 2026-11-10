@@ -9,5 +9,5 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   // Bundle the workspace package; keep real npm dependencies external.
-  noExternal: ["@cadence/shared"],
+  noExternal: ["@momentum/shared"],
 });

@@ -1,5 +1,5 @@
 import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
-import { addDays, awardPoints, basePoints, instantToLocalDate, localDayBounds, pointsRulesText } from "@cadence/shared";
+import { addDays, awardPoints, basePoints, instantToLocalDate, localDayBounds, pointsRulesText } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import type { Tx } from "../../core/db/index.js";
 import { externalEvents, groupPoints, groups } from "../../core/db/schema.js";

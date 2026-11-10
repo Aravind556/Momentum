@@ -1,4 +1,4 @@
-import { PACE_PRESETS, PRESET_COPY, type FollowPatch, type NewPace, type PacePreset, type Revision } from "@cadence/shared";
+import { PACE_PRESETS, PRESET_COPY, type FollowPatch, type NewPace, type PacePreset, type Revision } from "@momentum/shared";
 import { cx, Field, Select } from "../../components/ui";
 
 export type FollowDraft = Required<Pick<FollowPatch, "newPace" | "revision" | "preferredTime">>;

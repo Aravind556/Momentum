@@ -1,5 +1,5 @@
 import { and, desc, eq, lt, or } from "drizzle-orm";
-import { addDays, computeStreaks, difficultyBucket, instantToLocalDate, type DayState, type DifficultyBucket } from "@cadence/shared";
+import { addDays, computeStreaks, difficultyBucket, instantToLocalDate, type DayState, type DifficultyBucket } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { externalEvents } from "../../core/db/schema.js";
 import { badRequest } from "../../core/http.js";

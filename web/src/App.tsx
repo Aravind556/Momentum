@@ -19,7 +19,7 @@ export function App() {
   const session = authClient.useSession();
   const location = useLocation();
 
-  if (session.isPending) return <Spinner label="Loading Cadence" />;
+  if (session.isPending) return <Spinner label="Loading Momentum" />;
 
   if (!session.data) {
     return (

@@ -1,4 +1,6 @@
-# Cadence
+# Momentum
+
+**Make every day count.**
 
 A study planner for CS students that plans your day for you and keeps your study group on track.
 

@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { instantToLocalDate, REVIEW_RATINGS, type RevisionConfig, type ReviewRating } from "@cadence/shared";
+import { instantToLocalDate, REVIEW_RATINGS, type RevisionConfig, type ReviewRating } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import type { Tx } from "../../core/db/index.js";
 import { externalEvents, reviews, roadmapItems, roadmaps } from "../../core/db/schema.js";

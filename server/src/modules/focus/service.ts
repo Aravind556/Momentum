@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import { focusDurations } from "@cadence/shared";
+import { focusDurations } from "@momentum/shared";
 import type { Tx } from "../../core/db/index.js";
 import { focusPauses, focusSessions, profiles, scheduleBlocks, tasks } from "../../core/db/schema.js";
 import { badRequest, conflict, isUniqueViolation, notFound } from "../../core/http.js";

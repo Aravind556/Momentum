@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { z } from "zod";
-import { blockUpdateSchema, commitmentInputSchema, generateScheduleSchema } from "@cadence/shared";
+import { blockUpdateSchema, commitmentInputSchema, generateScheduleSchema } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { badRequest, param, parse, queryString } from "../../core/http.js";
 import { uid } from "../../core/middleware.js";

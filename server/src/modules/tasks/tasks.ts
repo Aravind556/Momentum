@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
-import type { TaskInput, TaskStatus } from "@cadence/shared";
+import type { TaskInput, TaskStatus } from "@momentum/shared";
 import type { DB, Tx } from "../../core/db/index.js";
 import { focusSessions, goals, scheduleBlocks, taskCompletions, taskDependencies, tasks } from "../../core/db/schema.js";
 import { badRequest, conflict, notFound } from "../../core/http.js";

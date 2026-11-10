@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, ne } from "drizzle-orm";
-import type { GoalInput } from "@cadence/shared";
+import type { GoalInput } from "@momentum/shared";
 import type { DB } from "../../core/db/index.js";
 import { goals, taskCompletions, tasks } from "../../core/db/schema.js";
 import { badRequest, notFound } from "../../core/http.js";

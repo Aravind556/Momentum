@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Flame, Lightbulb, Table2 } from "lucide-react";
 import { useState } from "react";
-import { CATEGORY_LABELS } from "@cadence/shared";
+import { CATEGORY_LABELS } from "@momentum/shared";
 import { api } from "../../lib/api";
 import { CodingProgress } from "./CodingProgress";
 import { fmtDate, fmtMinutes } from "../../lib/format";

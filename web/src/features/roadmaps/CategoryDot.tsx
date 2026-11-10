@@ -1,4 +1,4 @@
-import { CATEGORY_META, type Category } from "@cadence/shared";
+import { CATEGORY_META, type Category } from "@momentum/shared";
 import { cx } from "../../components/ui";
 
 const DOT: Record<string, string> = {

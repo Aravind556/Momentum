@@ -1,5 +1,5 @@
 {
-  "name": "@cadence/web",
+  "name": "@momentum/web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@cadence/shared": "*",
+    "@momentum/shared": "*",
     "@tanstack/react-query": "^5.90.0",
     "better-auth": "^1.3.0",
     "clsx": "^2.1.1",

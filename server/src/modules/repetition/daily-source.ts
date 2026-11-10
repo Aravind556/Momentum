@@ -1,5 +1,5 @@
 import { and, asc, eq, isNull, lte, or } from "drizzle-orm";
-import { addDays, instantToLocalDate, localDayBounds } from "@cadence/shared";
+import { addDays, instantToLocalDate, localDayBounds } from "@momentum/shared";
 import type { Tx } from "../../core/db/index.js";
 import { reviews, roadmapFollows, roadmapItems, roadmaps } from "../../core/db/schema.js";
 import type { DailyCandidate, DailySource, DayContext } from "../planning/sources.js";

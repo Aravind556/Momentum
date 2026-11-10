@@ -3,8 +3,13 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 
-for (const p of [path.resolve(process.cwd(), ".env"), path.resolve(process.cwd(), "..", ".env")]) {
-  if (existsSync(p)) loadDotenv({ path: p, quiet: true });
+// Earlier files win (dotenv never overrides): .env.local (written by `neon deploy`) beats .env,
+// and the working directory beats the repo root.
+for (const dir of [process.cwd(), path.resolve(process.cwd(), "..")]) {
+  for (const name of [".env.local", ".env"]) {
+    const p = path.resolve(dir, name);
+    if (existsSync(p)) loadDotenv({ path: p, quiet: true });
+  }
 }
 
 const isProd = process.env.NODE_ENV === "production";
@@ -24,6 +29,11 @@ export const env = {
   appUrl: process.env.APP_URL || "http://localhost:5173",
   /** PostgreSQL (e.g. Supabase). If unset, an embedded PGlite (Postgres in WASM) database is used. */
   databaseUrl: process.env.DATABASE_URL || "",
+  /**
+   * Direct (non-pooled) connection for migrations. Neon's pooled URL goes through PgBouncer in
+   * transaction mode, which drops session state, so schema changes use this one. Falls back to DATABASE_URL.
+   */
+  migrationDatabaseUrl: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL || "",
   pgliteDir: process.env.PGLITE_DIR || path.resolve(process.cwd(), ".data", "pglite"),
   authSecret: process.env.BETTER_AUTH_SECRET || devSecret("BETTER_AUTH_SECRET"),
   /** Optional: enables importing a YouTube playlist into a roadmap. */
@@ -36,7 +46,7 @@ export const env = {
     port: Number(process.env.SMTP_PORT || 587),
     user: process.env.SMTP_USER || "",
     pass: process.env.SMTP_PASS || "",
-    from: process.env.MAIL_FROM || "Cadence <no-reply@localhost>",
+    from: process.env.MAIL_FROM || "Momentum <no-reply@localhost>",
   },
   /**
    * Web Push (VAPID) keys. Generate once with \`npx web-push generate-vapid-keys\`. Without them a

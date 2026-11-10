@@ -5,11 +5,11 @@
  *
  * Platform data comes from a built-in fake (no network), so the seed is fast and deterministic.
  */
-import { addDays, instantToLocalDate, taskInputSchema } from "@cadence/shared";
+import { addDays, instantToLocalDate, taskInputSchema } from "@momentum/shared";
 import { bootstrap } from "../bootstrap.js";
 import { createAuth } from "../auth.js";
 import { env } from "../env.js";
-import { openDatabase, runMigrations } from "./index.js";
+import { migrate, openDatabase } from "./index.js";
 import { getOrCreateProfile, saveAvailability, updateProfile } from "../../modules/profile/service.js";
 import { createTask } from "../../modules/tasks/tasks.js";
 import { acceptInvitation, createGroup, createInvitation } from "../../modules/groups/service.js";
@@ -89,7 +89,7 @@ const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => 
 /* ---------------------------------------------------------------- seed */
 
 const database = await openDatabase({ databaseUrl: env.databaseUrl, pgliteDir: env.pgliteDir });
-await runMigrations(database);
+await migrate(database, env);
 const auth = createAuth(database.db);
 const { services: s } = bootstrap(database.db, { fetch: fakeFetch, platformSpacingMs: 0 });
 
@@ -103,7 +103,7 @@ const EVENINGS = {
 };
 
 async function user(username: string, name: string) {
-  const email = `${username}@cadence.dev`;
+  const email = `${username}@momentum.dev`;
   const existing = await database.db.query.user.findFirst({ where: (u, { eq }) => eq(u.email, email) });
   const u = existing ?? (await auth.api.signUpEmail({ body: { email, password: "demo-password", name, username } })).user;
   await getOrCreateProfile(database.db, { id: u.id, email, name, username });

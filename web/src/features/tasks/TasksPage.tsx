@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Archive, Check, ExternalLink, Pencil, Plus, RotateCcw, SkipForward, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { CATEGORY_LABELS, GOAL_CATEGORIES, PRIORITY_LABELS, VERIFICATION_LABELS, type VerificationStatus } from "@cadence/shared";
+import { CATEGORY_LABELS, GOAL_CATEGORIES, PRIORITY_LABELS, VERIFICATION_LABELS, type VerificationStatus } from "@momentum/shared";
 import { api } from "../../lib/api";
 import { fmtDateTime, fmtMinutes, verificationLabel } from "../../lib/format";
 import { SCHEDULE_KEYS, useAction, useTz } from "../../lib/hooks";

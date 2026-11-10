@@ -9,7 +9,7 @@ import {
   localToInstant,
   parseHHMM,
   type GroupTaskInput,
-} from "@cadence/shared";
+} from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import type { Tx } from "../../core/db/index.js";
 import { groupMembers, groupPoints, groupTasks, groups } from "../../core/db/schema.js";

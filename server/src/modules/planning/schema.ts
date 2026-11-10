@@ -1,5 +1,5 @@
 import { boolean, index, integer, jsonb, pgTable, text } from "drizzle-orm/pg-core";
-import type { Recurrence, TimeRange } from "@cadence/shared";
+import type { Recurrence, TimeRange } from "@momentum/shared";
 import { createdAt, id, ts, updatedAt } from "../../core/db/columns.js";
 import { user } from "../../core/db/core-schema.js";
 import { tasks } from "../tasks/schema.js";

@@ -27,8 +27,8 @@ export function PlanUpdates() {
       if (parts.length) toast(`Today's plan updated: ${parts.join(" · ")}`, "info");
       for (const key of [["today"], ["schedule"], ["forecast"]]) qc.invalidateQueries({ queryKey: key });
     };
-    window.addEventListener("cadence:notes", onNotes);
-    return () => window.removeEventListener("cadence:notes", onNotes);
+    window.addEventListener("momentum:notes", onNotes);
+    return () => window.removeEventListener("momentum:notes", onNotes);
   }, [toast, qc]);
   return null;
 }

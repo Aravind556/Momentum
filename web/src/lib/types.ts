@@ -1,4 +1,4 @@
-import type { FollowSettings, PointsConfig, Preferences, Recurrence, TimeRange, VerificationConfig } from "@cadence/shared";
+import type { FollowSettings, PointsConfig, Preferences, Recurrence, TimeRange, VerificationConfig } from "@momentum/shared";
 
 export interface Profile {
   userId: string;

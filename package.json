@@ -1,9 +1,13 @@
 {
-  "name": "cadence",
+  "name": "momentum",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": ["shared", "server", "web"],
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
   "scripts": {
     "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
     "build": "npm run build -w web && npm run build -w server",
@@ -17,5 +21,9 @@
   "devDependencies": {
     "concurrently": "^9.2.1",
     "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "@neon/config": "^1.14.0",
+    "@neon/env": "^2.1.3"
   }
 }

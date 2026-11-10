@@ -49,7 +49,7 @@ export async function signUp(app: Express, name = "User", timezone = "Asia/Kolka
     .set("origin", env.appUrl)
     .send({ email: `${username}@example.com`, password: "correct-horse-battery", name, username });
   if (res.status !== 200) throw new Error(`sign-up failed: ${res.status} ${res.text}`);
-  const h = (t: request.Test) => t.set("x-requested-with", "cadence").set("origin", env.appUrl);
+  const h = (t: request.Test) => t.set("x-requested-with", "momentum").set("origin", env.appUrl);
   const client: Client = {
     agent,
     get: (url) => agent.get(url).set("origin", env.appUrl),

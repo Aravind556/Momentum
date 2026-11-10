@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
-import { DEFAULT_POINTS, pointsConfigSchema, type PointsConfig } from "@cadence/shared";
+import { DEFAULT_POINTS, pointsConfigSchema, type PointsConfig } from "@momentum/shared";
 import type { Tx } from "../../core/db/index.js";
 import { groupInvites, groupMembers, groups, profiles } from "../../core/db/schema.js";
 import { inviteCode } from "../../core/ids.js";
