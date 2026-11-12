@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+<defs></defs>
+<g transform="translate(18.45,13.94) rotate(40) scale(0.098)"><defs><clipPath id="bodyClip"><path d="M0,-150 C35,-120 58,-60 55,20 C54,60 48,85 42,95 L-42,95 C-48,85 -54,60 -55,20 C-58,-60 -35,-120 0,-150 Z"/></clipPath></defs>
+<g stroke-linejoin="round" stroke-linecap="round">
+  <path d="M-26,108 C-32,150 -10,175 0,208 C10,175 32,150 26,108 Z" fill="#ff8a1f" stroke="#1b2a49" stroke-width="15.306122448979592"/>
+  <path d="M-13,108 C-16,138 -4,156 0,178 C4,156 16,138 13,108 Z" fill="#ffd43b"/>
+  <path d="M-36,92 L36,92 L28,114 L-28,114 Z" fill="#6d7f99" stroke="#1b2a49" stroke-width="15.306122448979592"/>
+  <path d="M-50,28 C-88,38 -104,70 -100,112 C-82,100 -62,96 -44,92 Z" fill="#f0562b" stroke="#1b2a49" stroke-width="15.306122448979592"/>
+  <path d="M46,48 C72,66 82,100 74,128 C62,116 50,106 40,94 Z" fill="#c8372d" stroke="#1b2a49" stroke-width="15.306122448979592"/>
+  <path d="M0,-150 C35,-120 58,-60 55,20 C54,60 48,85 42,95 L-42,95 C-48,85 -54,60 -55,20 C-58,-60 -35,-120 0,-150 Z" fill="#ffffff"/>
+  <g clip-path="url(#bodyClip)">
+    <path d="M28,-120 C58,-60 60,-10 58,40 C57,70 52,90 44,100 L18,100 C38,60 40,-20 28,-120 Z" fill="#d9e5f2"/>
+    <path d="M-90,-170 L90,-170 L90,-80 C45,-68 -45,-68 -90,-80 Z" fill="#f0562b"/>
+    <path d="M26,-135 C44,-112 52,-96 54,-82 C48,-80 40,-78 34,-77 C34,-97 32,-117 26,-135 Z" fill="#c8372d"/>
+  </g>
+  <path d="M0,-150 C35,-120 58,-60 55,20 C54,60 48,85 42,95 L-42,95 C-48,85 -54,60 -55,20 C-58,-60 -35,-120 0,-150 Z" fill="none" stroke="#1b2a49" stroke-width="15.306122448979592"/>
+  <circle cx="0" cy="-18" r="27" fill="#d3e9f7" stroke="#1b2a49" stroke-width="15.306122448979592"/>
+  <circle cx="0" cy="-18" r="17" fill="#4f9fd6" stroke="#1b2a49" stroke-width="9.183673469387754"/>
+  <path d="M-9,-24 C-6,-30 0,-32 5,-30" fill="none" stroke="#ffffff" stroke-width="9.183673469387754"/>
+</g></g>
+</svg>

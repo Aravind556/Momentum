@@ -19,7 +19,12 @@ export function useTz(): string {
  */
 export function useAction<TVars = void, TResult = unknown>(
   fn: (vars: TVars) => Promise<TResult>,
-  opts: { invalidate?: QueryKey[]; success?: string | ((r: TResult) => string | null); onSuccess?: (r: TResult, vars: TVars) => void } = {},
+  opts: {
+    invalidate?: QueryKey[];
+    success?: string | ((r: TResult) => string | null);
+    onSuccess?: (r: TResult, vars: TVars) => void;
+    onError?: (e: unknown, vars: TVars) => void;
+  } = {},
 ) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -31,7 +36,10 @@ export function useAction<TVars = void, TResult = unknown>(
       if (msg) toast(msg, "ok");
       opts.onSuccess?.(r, vars);
     },
-    onError: (e) => toast(errorMessage(e), "error"),
+    onError: (e, vars) => {
+      toast(errorMessage(e), "error");
+      opts.onError?.(e, vars);
+    },
   });
 }
 

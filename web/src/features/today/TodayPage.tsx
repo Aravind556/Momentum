@@ -165,15 +165,33 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
   const toast = useToast();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const refresh = () => TODAY_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k }));
+  // Today's list refetches right away; everything else (progress, roadmaps, calendar, forecast)
+  // is only marked out of date and refetches when it's next shown.
+  const refresh = () =>
+    TODAY_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k, refetchType: k[0] === "today" ? "active" : "none" }));
+  // Ticking a task you mark done yourself shows at once; the server confirms in the background
+  // and the tick is taken back if it fails. Submission checks have to wait for the answer.
+  const [shown, setShown] = useState<"done" | "pending" | null>(null);
+  useEffect(() => setShown(null), [item.status]);
   const check = useAction(() => api.post<{ status: "done" | "verified" | "not_found_yet" }>(`/today/tasks/${item.taskId}/check`), {
     onSuccess: (r) => {
       refresh();
-      if (r.status === "not_found_yet") toast("No accepted submission found yet. Solve it, then check again.", "info");
-      else toast(r.status === "verified" ? "Verified from your submission" : "Done", "ok");
+      if (r.status === "not_found_yet") {
+        setShown(null);
+        toast("No accepted submission found yet. Solve it, then check again.", "info");
+      } else if (r.status === "verified") toast("Verified from your submission", "ok");
     },
+    onError: () => setShown(null),
   });
-  const uncheck = useAction(() => api.post(`/today/tasks/${item.taskId}/uncheck`), { onSuccess: refresh });
+  const uncheck = useAction(() => api.post(`/today/tasks/${item.taskId}/uncheck`), { onSuccess: refresh, onError: () => setShown(null) });
+  const tick = () => {
+    if (item.check === "self") setShown("done");
+    check.mutate();
+  };
+  const untick = () => {
+    setShown("pending");
+    uncheck.mutate();
+  };
   const skip = useAction(() => api.post(`/today/tasks/${item.taskId}/skip`), { onSuccess: refresh, success: "Skipped for today" });
   const clearTime = useAction(() => api.del(`/today/tasks/${item.taskId}/time`), { onSuccess: refresh, success: "Open any time today" });
   const focus = useAction(() => api.post("/focus-sessions", { taskId: item.taskId, plannedMinutes: Math.min(item.estMinutes, 240) }), {
@@ -182,7 +200,7 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
       navigate("/focus");
     },
   });
-  const done = item.status === "done";
+  const done = shown ? shown === "done" : item.status === "done";
   const skipped = item.status === "skipped";
   const menu: RowMenuItem[] = [
     ...(!done && !skipped && item.swappable ? [{ label: "Swap for another", icon: Shuffle, onSelect: onSwap }] : []),
@@ -191,7 +209,7 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
     ...(!done && !skipped ? [{ label: item.reminder ? "Change reminder" : "Remind me…", icon: Bell, onSelect: onRemind }] : []),
     ...(!done && !skipped ? [{ label: "Start focus", icon: Timer, onSelect: () => focus.mutate() }] : []),
     ...(!done && !skipped ? [{ label: "Skip today", icon: SkipForward, onSelect: () => skip.mutate() }] : []),
-    ...(done && item.verifiedBy === "self" ? [{ label: "Mark not done", icon: Undo2, onSelect: () => uncheck.mutate() }] : []),
+    ...(done && item.verifiedBy === "self" ? [{ label: "Mark not done", icon: Undo2, onSelect: untick }] : []),
   ];
 
   return (
@@ -200,7 +218,7 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
         <button
           type="button"
           disabled={done || skipped || check.isPending}
-          onClick={() => check.mutate()}
+          onClick={tick}
           aria-label={done ? `${item.title} is done` : item.check === "submission" ? `Check ${item.title} against your submissions` : `Mark ${item.title} done`}
           className={cx(
             // The circle stays small; the invisible ::before ring gives a 44px tap area on phones.
@@ -209,7 +227,7 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
             skipped && "border-dashed",
           )}
         >
-          {check.isPending ? <Loader2 className="size-3 animate-spin text-muted" /> : done ? <Check className="size-3" strokeWidth={3} /> : null}
+          {check.isPending && item.check !== "self" ? <Loader2 className="size-3 animate-spin text-muted" /> : done ? <Check className="size-3" strokeWidth={3} /> : null}
         </button>
         <div className="min-w-0 flex-1">
           {item.url ? (

@@ -20,6 +20,9 @@ registerServiceWorker();
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      // Data fetched in the last 30 s is shown as-is when you switch pages, instead of being
+      // fetched again; changes you make still refresh what they touch straight away.
+      staleTime: 30_000,
       refetchOnWindowFocus: true,
       retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 2,
     },

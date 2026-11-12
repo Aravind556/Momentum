@@ -1,10 +1,10 @@
 import { and, eq, notInArray } from "drizzle-orm";
-import { addDays, instantToLocalDate, localDayBounds, preferencesSchema } from "@momentum/shared";
+import { addDays, instantToLocalDate, preferencesSchema } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { profiles, tasks } from "../../core/db/schema.js";
 import { notFound } from "../../core/http.js";
 import { isRecurring, occursOn } from "../tasks/recurrence.js";
-import { freeMinutesLeft, generatedTasksFor } from "./daily.js";
+import { freeMinutesByDay, generatedTasksFor } from "./daily.js";
 import { dailySources, type DayContext } from "./sources.js";
 
 export interface ForecastItem {
@@ -37,8 +37,7 @@ export async function forecast(s: Services, userId: string, count = 14): Promise
   const byDay = new Map(days.map((d) => [d, [] as ForecastItem[]]));
   const prefs = preferencesSchema.parse(profile.preferences);
   const generated = await generatedTasksFor(s.db, userId, today);
-  const capacity = new Map<string, number>();
-  for (const d of days) capacity.set(d, await freeMinutesLeft(s.db, userId, d, localDayBounds(d, tz).start));
+  const capacity = await freeMinutesByDay(s.db, userId, days, s.now());
 
   for (const src of dailySources()) {
     if (!src.forecast) continue;

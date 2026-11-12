@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 512 512">
+<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4aa8e6"/><stop offset="1" stop-color="#84d3fa"/></linearGradient></defs>
+<rect width="512" height="512" fill="url(#sky)"/><g fill="#e4f5fd">
+  <circle cx="165" cy="255" r="88"/><circle cx="262" cy="200" r="108"/><circle cx="345" cy="245" r="80"/>
+  <circle cx="215" cy="300" r="78"/><circle cx="110" cy="330" r="46"/><circle cx="395" cy="318" r="40"/>
+  <circle cx="300" cy="320" r="62"/><circle cx="62" cy="372" r="30"/>
+</g><g fill="#e8f6fd" opacity="0.95">
+  <circle cx="92" cy="392" r="26"/><circle cx="132" cy="378" r="22"/><circle cx="62" cy="400" r="18"/>
+</g><g>
+  <path d="M-10,460 C70,408 322,380 522,416 L522,480 C322,510 70,510 -10,480 Z" fill="#5db92f"/>
+  <path d="M30,438 C130,406 322,392 492,418" fill="none" stroke="#7fd04a" stroke-width="6" stroke-linecap="round" opacity=".7"/>
+  <g stroke="#3f8f1e" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M20,450 l4,-22 M32,450 l-2,-16 M462,430 l6,-20 M474,430 l-3,-14"/>
+  </g>
+</g><g transform="translate(299.75,185.05) rotate(40) scale(0.95)"><defs><clipPath id="bodyClip"><path d="M0,-150 C35,-120 58,-60 55,20 C54,60 48,85 42,95 L-42,95 C-48,85 -54,60 -55,20 C-58,-60 -35,-120 0,-150 Z"/></clipPath></defs>
+<g stroke-linejoin="round" stroke-linecap="round">
+  <path d="M-26,108 C-32,150 -10,175 0,208 C10,175 32,150 26,108 Z" fill="#ff8a1f" stroke="#1b2a49" stroke-width="8.421052631578947"/>
+  <path d="M-13,108 C-16,138 -4,156 0,178 C4,156 16,138 13,108 Z" fill="#ffd43b"/>
+  <path d="M-36,92 L36,92 L28,114 L-28,114 Z" fill="#6d7f99" stroke="#1b2a49" stroke-width="8.421052631578947"/>
+  <path d="M-50,28 C-88,38 -104,70 -100,112 C-82,100 -62,96 -44,92 Z" fill="#f0562b" stroke="#1b2a49" stroke-width="8.421052631578947"/>
+  <path d="M46,48 C72,66 82,100 74,128 C62,116 50,106 40,94 Z" fill="#c8372d" stroke="#1b2a49" stroke-width="8.421052631578947"/>
+  <path d="M0,-150 C35,-120 58,-60 55,20 C54,60 48,85 42,95 L-42,95 C-48,85 -54,60 -55,20 C-58,-60 -35,-120 0,-150 Z" fill="#ffffff"/>
+  <g clip-path="url(#bodyClip)">
+    <path d="M28,-120 C58,-60 60,-10 58,40 C57,70 52,90 44,100 L18,100 C38,60 40,-20 28,-120 Z" fill="#d9e5f2"/>
+    <path d="M-90,-170 L90,-170 L90,-80 C45,-68 -45,-68 -90,-80 Z" fill="#f0562b"/>
+    <path d="M26,-135 C44,-112 52,-96 54,-82 C48,-80 40,-78 34,-77 C34,-97 32,-117 26,-135 Z" fill="#c8372d"/>
+  </g>
+  <path d="M0,-150 C35,-120 58,-60 55,20 C54,60 48,85 42,95 L-42,95 C-48,85 -54,60 -55,20 C-58,-60 -35,-120 0,-150 Z" fill="none" stroke="#1b2a49" stroke-width="8.421052631578947"/>
+  <circle cx="0" cy="-18" r="27" fill="#d3e9f7" stroke="#1b2a49" stroke-width="8.421052631578947"/>
+  <circle cx="0" cy="-18" r="17" fill="#4f9fd6" stroke="#1b2a49" stroke-width="5.052631578947368"/>
+  <path d="M-9,-24 C-6,-30 0,-32 5,-30" fill="none" stroke="#ffffff" stroke-width="5.052631578947368"/>
+</g></g>
+</svg>

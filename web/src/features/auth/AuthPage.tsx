@@ -1,4 +1,4 @@
-import { BarChart3, BellRing, CalendarCheck, CircleDot, Eye, EyeOff } from "lucide-react";
+import { BarChart3, BellRing, CalendarCheck, Eye, EyeOff } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { authClient } from "../../lib/auth-client";
@@ -70,7 +70,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-accent p-12 text-accent-ink lg:flex xl:p-16">
         <div className="pointer-events-none absolute -right-24 -bottom-24 size-96 rounded-full border-[48px] border-current opacity-10" aria-hidden />
         <div className="flex items-center gap-2">
-          <CircleDot className="size-6" aria-hidden />
+          <img src="/momentum-icons/master-logo.svg" alt="" className="size-10 rounded-xl bg-white/90 p-0.5" />
           <span className="text-lg font-semibold tracking-tight">Momentum</span>
         </div>
         <div className="relative max-w-md">
@@ -95,7 +95,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
           {/* Phones and tablets: the brand sits above the form (the panel covers it on desktop). */}
           <div className="mb-6 sm:mb-8 lg:hidden short:mb-4 short:flex short:items-baseline short:gap-2">
             <div className="flex items-center gap-2">
-              <CircleDot className="size-6 text-accent" aria-hidden />
+              <img src="/momentum-icons/favicon-32.svg" alt="" className="size-7" />
               <span className="text-lg font-semibold tracking-tight">Momentum</span>
             </div>
             <p className="mt-1 text-sm text-muted short:mt-0">Make every day count.</p>

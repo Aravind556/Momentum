@@ -197,6 +197,44 @@ export async function freeMinutesLeft(db: Tx, userId: string, day: string, now: 
   return Math.max(0, minutes - ownDue.reduce((n, t) => n + t.minutes, 0));
 }
 
+/**
+ * Free minutes for several future days at once: one planning state for the whole range and one
+ * query for deadlines, instead of one of each per day (the forecast asks for two weeks).
+ * Same result as calling freeMinutesLeft(day, start of that day) for each day. `days` ascending.
+ */
+export async function freeMinutesByDay(db: Tx, userId: string, days: string[], now: number): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!days.length) return out;
+  const first = days[0]!;
+  const last = days[days.length - 1]!;
+  const state = await buildPlanningState(db, userId, first, last, now, { includeTasks: false });
+  const busy = busyToIntervals(state.input.busy);
+  const from = Math.max(now, localDayBounds(first, state.tz).start);
+  const due = await db
+    .select({ minutes: tasks.estimatedMinutes, dueAt: tasks.dueAt })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.ownerId, userId),
+        eq(tasks.source, "manual"),
+        notInArray(tasks.status, ["completed", "cancelled", "skipped"]),
+        gte(tasks.dueAt, new Date(from)),
+        lte(tasks.dueAt, new Date(localDayBounds(last, state.tz).end)),
+      ),
+    );
+  for (const day of days) {
+    const bounds = localDayBounds(day, state.tz);
+    const free = computeFreeIntervals(computeWorkWindows(state.spec, state.tz, day, day), busy, Math.max(state.input.notBefore ?? 0, bounds.start));
+    let minutes = free.reduce((n, f) => n + (f.end - f.start) / 60_000, 0);
+    for (const t of due) {
+      const at = t.dueAt!.getTime();
+      if (at >= Math.max(now, bounds.start) && at <= bounds.end) minutes -= t.minutes;
+    }
+    out.set(day, Math.max(0, minutes));
+  }
+  return out;
+}
+
 /** Unfinished generated work from earlier days is cancelled; its items go back to their queues. */
 async function rollOver(tx: Tx, userId: string, day: string) {
   const old = await tx

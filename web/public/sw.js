@@ -11,8 +11,8 @@ self.addEventListener("push", (event) => {
       body: data.body || "",
       tag: data.tag || "momentum",
       renotify: true,
-      icon: "/icon.svg",
-      badge: "/icon.svg",
+      icon: "/momentum-icons/pwa-192.png",
+      badge: "/momentum-icons/favicon-32.png",
       data: { url: data.url || "/" },
     }),
   );

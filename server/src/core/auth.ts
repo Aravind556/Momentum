@@ -35,6 +35,9 @@ export function createAuth(db: DB) {
     session: {
       expiresIn: 60 * 60 * 24 * 30,
       updateAge: 60 * 60 * 24,
+      // Every API request checks the session. A short-lived signed copy in a cookie saves that
+      // database round trip; a session revoked elsewhere stops working within 5 minutes.
+      cookieCache: { enabled: true, maxAge: 5 * 60 },
     },
     rateLimit: {
       enabled: !env.isTest,

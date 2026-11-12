@@ -1,9 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   Bell,
   CalendarDays,
-  CircleDot,
   Home,
   ListChecks,
   Map as MapIcon,
@@ -22,7 +21,7 @@ import { useAction, useMe } from "../lib/hooks";
 import type { FocusSession, Notification } from "../lib/types";
 import { Avatar } from "./Avatar";
 import { PlanUpdates } from "./PlanUpdates";
-import { cx, IconButton } from "./ui";
+import { cx, IconButton, useToast } from "./ui";
 
 const NAV = [
   { to: "/", label: "Today", icon: Home, end: true },
@@ -35,8 +34,34 @@ const NAV = [
 ];
 const MOBILE_PRIMARY = ["/", "/tasks", "/calendar", "/roadmaps"];
 
+/**
+ * New accounts start on UTC. If that's still the setting and this browser is somewhere else, adopt
+ * the browser's timezone once, so "today", reminder hours and the plan follow the user's clock.
+ */
+function useAdoptBrowserTimezone() {
+  const me = useMe();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const tried = useRef(false);
+  const current = me.data?.profile.timezone;
+  useEffect(() => {
+    if (tried.current || current !== "UTC") return;
+    const browser = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!browser || browser === "UTC" || browser === "Etc/UTC") return;
+    tried.current = true;
+    api
+      .patch("/me", { timezone: browser })
+      .then(() => {
+        qc.invalidateQueries();
+        toast(`Timezone set to ${browser}. You can change it in Settings.`, "info");
+      })
+      .catch(() => undefined);
+  }, [current, qc, toast]);
+}
+
 export function Layout() {
   const me = useMe();
+  useAdoptBrowserTimezone();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
   const active = useQuery({
@@ -58,7 +83,7 @@ export function Layout() {
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface md:flex">
         <div className="px-4 py-4">
           <div className="flex items-center gap-2">
-            <CircleDot className="size-5 text-accent" aria-hidden />
+            <img src="/momentum-icons/favicon-32.svg" alt="" className="size-6" />
             <span className="text-[15px] font-semibold tracking-tight">Momentum</span>
           </div>
           <p className="mt-0.5 pl-7 text-xs text-muted">Make every day count.</p>
@@ -97,7 +122,7 @@ export function Layout() {
       <div className="flex min-w-0 flex-col">
         <header className="sticky top-0 z-30 flex h-[calc(3rem+env(safe-area-inset-top))] items-center justify-between border-b border-line bg-bg/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur md:justify-end">
           <span className="flex items-center gap-2 md:hidden">
-            <CircleDot className="size-5 text-accent" aria-hidden />
+            <img src="/momentum-icons/favicon-32.svg" alt="" className="size-6" />
             <span className="font-semibold">Momentum</span>
           </span>
           <div className="flex items-center gap-1">
