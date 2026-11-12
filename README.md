@@ -84,6 +84,12 @@ npm ci && npm run build && npm start
 ```
 Migrations run on start, and the API serves the web app from the same origin.
 
+**Docker** (two containers: `backend` = the API from [server/Dockerfile](server/Dockerfile), `frontend` = the web app on nginx from [web/Dockerfile](web/Dockerfile)):
+```bash
+docker compose up -d --build      # uses .env; frontend on 127.0.0.1:3002, backend on 127.0.0.1:3003
+```
+Both share the `momentum` Docker network: the frontend's nginx forwards `/api` to `backend:3001`, so the host's nginx only needs to proxy the domain to the frontend port (cookies stay first-party). Ports, the env file and the image tag come from `FRONTEND_PORT`, `BACKEND_PORT`, `ENV_FILE` and `TAG`. For blue-green, start a second copy with `-p momentum-green` and other ports; see the comments in [docker-compose.yml](docker-compose.yml). Set `APP_URL` to the public `https://` address, plus `BETTER_AUTH_SECRET`, `DATABASE_URL` (and `DATABASE_URL_UNPOOLED` for Neon) and the VAPID keys; the frontend needs no configuration. The backend trusts one proxy hop for client IPs. During a blue-green switch both backends briefly run against the same database, so keep migrations additive (add columns/tables; drop old ones in a later release).
+
 | Script | |
 |---|---|
 | `npm test` | Unit + API integration tests (in-memory Postgres, mocked platforms) |

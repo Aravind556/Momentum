@@ -1,0 +1,64 @@
+# Frontend container: serves the built web app and forwards /api to the backend over the Docker
+# network. ${API_UPSTREAM} (default backend:3001) is filled in from the environment when the
+# container starts; nginx's own $variables are left alone.
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    server_tokens off;
+
+    # Docker's DNS. Re-resolving every few seconds means a new backend (blue-green) is picked up
+    # and a stopped one dropped without restarting this container.
+    resolver 127.0.0.11 valid=5s ipv6=off;
+    set $api http://${API_UPSTREAM};
+
+    location /api/ {
+        proxy_pass $api;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        # Pass on what the host's nginx set, unchanged: the client's real address (one value, so
+        # the backend, which trusts one proxy hop, sees the visitor and not this container).
+        proxy_set_header X-Forwarded-For $http_x_forwarded_for;
+        proxy_set_header X-Real-IP $http_x_real_ip;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_set_header X-Forwarded-Host $http_x_forwarded_host;
+        # If one backend is stopping mid-switch, retry the other.
+        proxy_next_upstream error timeout http_502;
+        # Roadmap pastes are small; LeetCode/Codeforces syncs can take a few seconds.
+        client_max_body_size 1m;
+        proxy_read_timeout 60s;
+    }
+
+    # Hashed file names: safe to cache for a year.
+    location /assets/ {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # Re-checked on every visit, or browsers keep running an old service worker (reminders,
+    # notification clicks) after a deploy.
+    location = /sw.js {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-cache";
+    }
+    location = /manifest.webmanifest {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-cache";
+        types { application/manifest+json webmanifest; }
+    }
+
+    location ~* \.(png|svg|ico)$ {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public, max-age=3600";
+        try_files $uri =404;
+    }
+
+    # Every other path is a page of the app: always a fresh index.html so a deploy shows up.
+    location / {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-cache";
+        try_files $uri /index.html;
+    }
+}

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 
-// Earlier files win (dotenv never overrides): .env.local (written by `neon deploy`) beats .env,
+// Earlier files win (dotenv never overrides): .env.local beats .env,
 // and the working directory beats the repo root.
 for (const dir of [process.cwd(), path.resolve(process.cwd(), "..")]) {
   for (const name of [".env.local", ".env"]) {

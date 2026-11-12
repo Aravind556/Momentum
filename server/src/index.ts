@@ -13,9 +13,21 @@ const server = app.listen(env.port, () => {
   console.log(`[momentum] API listening on http://localhost:${env.port} (database: ${database.driver})`);
 });
 
+// On stop (docker stop, blue-green switch): take no new connections, let in-flight requests finish
+// (at most 10 s), then close the database.
+let stopping = false;
 async function shutdown() {
+  if (stopping) return;
+  stopping = true;
   stopJobs();
-  server.close();
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, 10_000);
+    server.close(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+    server.closeIdleConnections();
+  });
   await database.close();
   process.exit(0);
 }

@@ -51,7 +51,17 @@ export function createApp(services: Services, auth: Auth, modules: AppModule[]) 
   // In production the built web app is served from the same origin (cookies stay first-party).
   const webDist = findWebDist();
   if (webDist) {
-    app.use(express.static(webDist, { index: false, maxAge: "1h" }));
+    app.use(
+      express.static(webDist, {
+        index: false,
+        maxAge: "1h",
+        // The service worker and manifest must be re-checked on every visit, or browsers keep
+        // running an old worker (reminders, notification clicks) for up to an hour.
+        setHeaders: (res, file) => {
+          if (/(^|[\\/])(sw\.js|manifest\.webmanifest)$/.test(file)) res.setHeader("Cache-Control", "no-cache");
+        },
+      }),
+    );
     app.get("/{*splat}", (_req, res) => res.sendFile(path.join(webDist, "index.html")));
   }
 

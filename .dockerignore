@@ -1,0 +1,17 @@
+# Keep secrets, local data and build output out of the image and the build context.
+.env
+.env.*
+!.env.example
+.neon
+.git
+.gitignore
+**/node_modules
+**/dist
+**/.data
+**/coverage
+**/*.log
+.vscode
+.idea
+**/Dockerfile
+docker-compose.yml
+.dockerignore

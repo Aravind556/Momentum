@@ -1,0 +1,58 @@
+# Momentum: two containers on one Docker network.   docker compose up -d --build
+#
+#   frontend  the web app on nginx (web/Dockerfile), on 127.0.0.1:${FRONTEND_PORT:-3002}.
+#             Forwards /api to the backend over the network, so https://<domain>/api/… works.
+#   backend   the API (server/Dockerfile), on 127.0.0.1:${BACKEND_PORT:-3003}. Every /api route
+#             except /api/health and sign-in needs a signed-in session.
+#
+# Both ports are bound to 127.0.0.1: the internet reaches them only through the host's nginx (HTTPS,
+# and the real client address the backend's sign-in rate limiting relies on).
+#
+# Settings come from the shell environment or from .env next to this file:
+#   ENV_FILE        file with the app's settings (DATABASE_URL, BETTER_AUTH_SECRET, …)  [.env]
+#   FRONTEND_PORT   host port for the frontend                                       [3002]
+#   BACKEND_PORT    host port for the backend                                        [3003]
+#   TAG             image tag to build and run                                       [latest]
+#
+# Blue-green: run a second copy under another project name and ports, e.g.
+#   FRONTEND_PORT=3012 BACKEND_PORT=3013 docker compose -p momentum-green up -d --build
+# Both copies join the same "momentum" network and both backends answer to "backend", so either
+# frontend reaches whichever backend is running. Point nginx at the new ports, then stop the old copy.
+name: momentum
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: momentum-backend:${TAG:-latest}
+    restart: unless-stopped
+    env_file: ${ENV_FILE:-.env}
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-3003}:3001"
+    networks: [momentum]
+    # Lets in-flight requests finish on stop (the server waits up to 10 s).
+    stop_grace_period: 15s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    image: momentum-frontend:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: backend:3001
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3002}:8080"
+    networks: [momentum]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  # A fixed name, so blue and green copies (different project names) share one network.
+  momentum:
+    name: momentum
