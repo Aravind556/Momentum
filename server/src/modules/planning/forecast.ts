@@ -20,7 +20,8 @@ export interface ForecastDay {
   minutes: number;
 }
 
-const kindOf = (source: string, k: "due" | "new"): ForecastItem["kind"] => (source === "group" ? "group" : k === "new" ? "new" : "revision");
+const kindOf = (source: string, k: "due" | "new"): ForecastItem["kind"] =>
+  source === "group" || source === "group-roadmap" ? "group" : k === "new" ? "new" : "revision";
 
 /**
  * "What's lined up": the coming days as the automation would plan them today, from every

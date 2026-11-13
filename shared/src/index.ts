@@ -12,3 +12,4 @@ export * from "./sm2.js";
 export * from "./pace.js";
 export * from "./points.js";
 export * from "./roadmap-lines.js";
+export * from "./group-roadmap.js";

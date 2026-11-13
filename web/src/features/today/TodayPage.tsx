@@ -8,7 +8,7 @@ import { fmtDate, fmtMinutes, fmtTime, localToIso, todayIn } from "../../lib/for
 import { SCHEDULE_KEYS, useAction, useMe, useTz } from "../../lib/hooks";
 import type { FocusSession, ScheduleView, TodayItem, TodayView } from "../../lib/types";
 import { RowMenu, type RowMenuItem } from "../../components/RowMenu";
-import { Button, Card, cx, EmptyState, ErrorState, Field, Input, Modal, Progress, Spinner, useToast } from "../../components/ui";
+import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Modal, Progress, Spinner, useToast } from "../../components/ui";
 import { QuickAdd, UnscheduledCard } from "../planner/SchedulePanels";
 import { useSchedule } from "../planner/Agenda";
 import { TaskFormModal } from "../tasks/TaskForm";
@@ -18,10 +18,12 @@ import { ComingUp } from "./ComingUp";
 /** Everything the day plan touches; invalidated after any change on this page. */
 const TODAY_KEYS = [["today"], ["roadmaps"], ["roadmap"], ["reviews"], ["progress"], ["forecast"], ...SCHEDULE_KEYS];
 
+const OVERDUE = "Overdue · ";
+
 /** The short tag shown on each row: where the item came from. */
 function tagOf(i: TodayItem): string {
   if (i.source === "manual") return "Task";
-  if (i.source === "group") return "Group";
+  if (i.source === "group" || i.source === "group-roadmap") return "Group";
   if (i.source === "review") return "Revision";
   if (i.category === "other") return "Topic";
   return CATEGORY_META[i.category as Category]?.label ?? "Item";
@@ -201,6 +203,9 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
     },
   });
   const done = shown ? shown === "done" : item.status === "done";
+  // Group roadmap items missed on their day carry over, labelled "Overdue · Group · Roadmap".
+  const overdue = item.source === "group-roadmap" && !!item.label?.startsWith(OVERDUE);
+  const label = overdue ? item.label!.slice(OVERDUE.length) : item.label;
   const skipped = item.status === "skipped";
   const menu: RowMenuItem[] = [
     ...(!done && !skipped && item.swappable ? [{ label: "Swap for another", icon: Shuffle, onSelect: onSwap }] : []),
@@ -238,13 +243,14 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
             <p className={cx("truncate text-sm font-medium", done && "text-muted line-through decoration-faint")}>{item.title}</p>
           )}
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
+            {overdue && <Badge tone="warn">Overdue</Badge>}
             <Tag>
               {item.source !== "manual" && item.source !== "group" && item.source !== "review" && item.category !== "other" && <CategoryDot category={item.category} />}
               {item.source === "review" && <Repeat className="mr-0.5 size-2.5" aria-hidden />}
               {tagOf(item)}
             </Tag>
-            {item.label && <span className="truncate">{item.label}</span>}
-            {item.label && <span aria-hidden>·</span>}
+            {label && <span className="truncate">{label}</span>}
+            {label && <span aria-hidden>·</span>}
             <span className="tabular">
               {item.block ? `${fmtTime(item.block.startAt, tz)} · ` : item.dueAt ? `due ${fmtTime(item.dueAt, tz)} · ` : ""}
               {fmtMinutes(item.estMinutes)}

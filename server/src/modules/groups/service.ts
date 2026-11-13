@@ -46,9 +46,9 @@ export async function createGroup(s: Services, userId: string, input: { name: st
   return s.db.transaction(async (tx) => {
     const [g] = await tx
       .insert(groups)
-      .values({ name: input.name, description: input.description ?? null, ownerId: userId, points: DEFAULT_POINTS })
+      .values({ name: input.name, description: input.description ?? null, ownerId: userId, points: DEFAULT_POINTS, createdAt: new Date(s.now()) })
       .returning();
-    await tx.insert(groupMembers).values({ groupId: g!.id, userId, role: "owner" });
+    await tx.insert(groupMembers).values({ groupId: g!.id, userId, role: "owner", joinedAt: new Date(s.now()) });
     return g!;
   });
 }
@@ -151,7 +151,7 @@ export async function acceptInvitation(s: Services, userId: string, code: string
     if (existing) {
       await tx.update(groupMembers).set({ status: "active", role: "member", joinedAt: new Date(now) }).where(eq(groupMembers.id, existing.id));
     } else {
-      await tx.insert(groupMembers).values({ groupId: inv.groupId, userId, role: "member" });
+      await tx.insert(groupMembers).values({ groupId: inv.groupId, userId, role: "member", joinedAt: new Date(now) });
     }
     await tx.update(groupInvites).set({ uses: inv.uses + 1 }).where(eq(groupInvites.id, inv.id));
 

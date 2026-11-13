@@ -11,6 +11,7 @@ import { RowMenu } from "../../components/RowMenu";
 import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, IconButton, Input, Modal, Progress, Segmented, Select, Spinner, useToast } from "../../components/ui";
 import { CategoryDot } from "../roadmaps/CategoryDot";
 import { DEFAULT_FOLLOW, FollowSettingsPicker, type FollowDraft } from "../roadmaps/FollowSettingsPicker";
+import { AssignedRoadmapsPanel, AssignedToday } from "./AssignedRoadmaps";
 
 type Tab = "today" | "roadmaps" | "leaderboard" | "members";
 const TABS: Tab[] = ["today", "roadmaps", "leaderboard", "members"];
@@ -50,7 +51,7 @@ export function GroupDetailPage() {
         />
       </header>
       {tab === "today" && <GroupToday groupId={id} isAdmin={isAdmin} />}
-      {tab === "roadmaps" && <GroupRoadmaps groupId={id} />}
+      {tab === "roadmaps" && <GroupRoadmaps groupId={id} isAdmin={isAdmin} />}
       {tab === "leaderboard" && <Leaderboard groupId={id} />}
       {tab === "members" && <Members d={d} />}
     </div>
@@ -74,6 +75,7 @@ function GroupToday({ groupId, isAdmin }: { groupId: string; isAdmin: boolean })
           </Button>
         )}
       </div>
+      <AssignedToday groupId={groupId} />
       {q.isPending ? (
         <Spinner />
       ) : q.isError ? (
@@ -241,29 +243,37 @@ function NewGroupTaskModal({ groupId, open, onClose }: { groupId: string; open: 
 
 /* ---------------------------------------------------------------- roadmaps */
 
-function GroupRoadmaps({ groupId }: { groupId: string }) {
+function GroupRoadmaps({ groupId, isAdmin }: { groupId: string; isAdmin: boolean }) {
   const q = useQuery({ queryKey: ["group-roadmaps", groupId], queryFn: () => api.get<SharedRoadmap[]>(`/groups/${groupId}/roadmaps`) });
   const [subscribing, setSubscribing] = useState<SharedRoadmap | null>(null);
   const [sharing, setSharing] = useState(false);
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted">Roadmaps members shared. Subscribe to follow one at your own pace — when everyone follows it, it's a group roadmap.</p>
-        <Button icon={<Share2 className="size-4" />} onClick={() => setSharing(true)}>
-          Share a roadmap
-        </Button>
-      </div>
-      {q.isPending ? (
-        <Spinner />
-      ) : q.isError ? (
-        <ErrorState error={q.error} />
-      ) : q.data.length === 0 ? (
-        <Card>
-          <EmptyState title="No shared roadmaps yet" description="Share one of your roadmaps so others can learn it with you." />
-        </Card>
-      ) : (
-        q.data.map((r) => <SharedRoadmapCard key={r.id} r={r} groupId={groupId} onSubscribe={() => setSubscribing(r)} />)
-      )}
+    <div className="space-y-6">
+      <AssignedRoadmapsPanel groupId={groupId} isAdmin={isAdmin} shared={q.data ?? []} />
+      <section className="space-y-3" aria-labelledby="shared-heading">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="shared-heading" className="text-sm font-semibold">
+              Shared roadmaps
+            </h2>
+            <p className="text-sm text-muted">Subscribe to follow one at your own pace — when everyone follows it, it's a group roadmap.</p>
+          </div>
+          <Button icon={<Share2 className="size-4" />} onClick={() => setSharing(true)}>
+            Share a roadmap
+          </Button>
+        </div>
+        {q.isPending ? (
+          <Spinner />
+        ) : q.isError ? (
+          <ErrorState error={q.error} />
+        ) : q.data.length === 0 ? (
+          <Card>
+            <EmptyState title="No shared roadmaps yet" description="Share one of your roadmaps so others can learn it with you." />
+          </Card>
+        ) : (
+          q.data.map((r) => <SharedRoadmapCard key={r.id} r={r} groupId={groupId} onSubscribe={() => setSubscribing(r)} />)
+        )}
+      </section>
       <SubscribeModal groupId={groupId} roadmap={subscribing} onClose={() => setSubscribing(null)} />
       <ShareRoadmapModal groupId={groupId} open={sharing} onClose={() => setSharing(false)} sharedIds={(q.data ?? []).map((r) => r.id)} />
     </div>

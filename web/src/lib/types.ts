@@ -330,3 +330,42 @@ export interface TodayView {
   summary: { total: number; done: number; minutesPlanned: number };
   deferred: number;
 }
+
+/** A roadmap assigned to a whole group at one pace (see the server's groups/assigned-roadmaps.ts). */
+export interface AssignedRoadmap {
+  id: string;
+  roadmap: { id: string; title: string };
+  itemsPerDay: number;
+  weekdays: number[];
+  dueTime: string;
+  revision: "frequent" | "decent" | "rare" | "off";
+  status: "active" | "paused";
+  startDate: string;
+  timezone: string;
+  /** The group's current day. */
+  day: string;
+  total: number;
+  /** Items scheduled so far, up to today. */
+  scheduled: number;
+  dueAt: string;
+  today: Array<{
+    itemId: string;
+    title: string;
+    url: string | null;
+    category: string;
+    difficulty: string | null;
+    estMinutes: number;
+    doneCount: number;
+    members: Array<{ user: PublicUser; done: boolean; completedAt: string | null; rank: number | null; points: number | null; verifiedBy: "submission" | "self" | null }>;
+  }>;
+  members: Array<{ user: PublicUser; done: number; of: number }>;
+  myOverdue: number;
+  /** Items the group covered before you joined. */
+  previousCount: number;
+}
+
+export interface PreviousItems {
+  joinedOn: string;
+  done: number;
+  items: Array<{ itemId: string; day: string; title: string; url: string | null; category: string; difficulty: string | null; estMinutes: number; done: boolean }>;
+}

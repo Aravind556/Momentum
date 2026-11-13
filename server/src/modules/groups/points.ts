@@ -46,6 +46,35 @@ export async function recordRoadmapItemPoints(
     .onConflictDoNothing();
 }
 
+/**
+ * Points for an item of a roadmap assigned to the group. Finished by the end of its group day: it
+ * is ranked among the on-time finishers (first-finisher bonuses, as for group tasks). Later: base
+ * points only. `dayEnd` is the end of that group day; earned once per member and item.
+ */
+export async function recordAssignedItemPoints(
+  db: Tx,
+  e: { groupId: string; userId: string; itemId: string; day: string; dayEnd: number; completedAt: Date; verifiedBy: "submission" | "self"; base: number },
+) {
+  await db
+    .insert(groupPoints)
+    .values({ groupId: e.groupId, userId: e.userId, sourceType: "assigned_item", sourceId: e.itemId, occurrence: e.day, completedAt: e.completedAt, verifiedBy: e.verifiedBy, basePoints: e.base, points: e.base })
+    .onConflictDoNothing();
+  const group = await db.query.groups.findFirst({ where: eq(groups.id, e.groupId) });
+  const finishers = await db
+    .select()
+    .from(groupPoints)
+    .where(and(eq(groupPoints.groupId, e.groupId), eq(groupPoints.sourceType, "assigned_item"), eq(groupPoints.sourceId, e.itemId), eq(groupPoints.occurrence, e.day)))
+    .orderBy(asc(groupPoints.completedAt), asc(groupPoints.createdAt));
+  let place = 0;
+  for (const row of finishers) {
+    const onTime = row.completedAt.getTime() <= e.dayEnd;
+    if (onTime) place += 1;
+    const rank = onTime ? place : null;
+    const points = onTime ? awardPoints(row.basePoints, place, group?.points) : row.basePoints;
+    if (row.rank !== rank || row.points !== points) await db.update(groupPoints).set({ rank, points }).where(eq(groupPoints.id, row.id));
+  }
+}
+
 export type Period = "week" | "month" | "all";
 
 /**

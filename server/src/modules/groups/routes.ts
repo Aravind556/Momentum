@@ -4,6 +4,8 @@ import { followPatchSchema, groupInputSchema, pointsConfigSchema } from "@moment
 import type { Services } from "../../core/context.js";
 import { param, parse, queryString } from "../../core/http.js";
 import { sensitiveLimiter, uid } from "../../core/middleware.js";
+import * as assigned from "./assigned-roadmaps.js";
+import * as catchUp from "./catch-up-cache.js";
 import * as tasks from "./group-tasks.js";
 import { leaderboard, type Period } from "./points.js";
 import * as groups from "./service.js";
@@ -85,4 +87,15 @@ export function groupRoutes(r: Router, s: Services) {
     await groups.revokeInvitation(s, uid(req), param(req, "id"));
     res.status(204).end();
   });
+
+  // Roadmaps assigned to the whole group (admins assign; everyone gets the day's items).
+  r.get("/groups/:id/assigned-roadmaps", async (req, res) => res.json(await assigned.listAssignments(s, uid(req), param(req, "id"))));
+  r.post("/groups/:id/assigned-roadmaps", async (req, res) => res.status(201).json(await assigned.assignRoadmap(s, uid(req), param(req, "id"), req.body)));
+  r.patch("/groups/:id/assigned-roadmaps/:aid", async (req, res) => res.json(await assigned.updateAssignment(s, uid(req), param(req, "id"), param(req, "aid"), req.body)));
+  r.delete("/groups/:id/assigned-roadmaps/:aid", async (req, res) => res.json(await assigned.endAssignment(s, uid(req), param(req, "id"), param(req, "aid"))));
+  // Items covered before you joined, to tick off on your own.
+  r.get("/groups/:id/assigned-roadmaps/:aid/previous", async (req, res) => res.json(await catchUp.previousItems(s, uid(req), param(req, "id"), param(req, "aid"))));
+  r.post("/groups/:id/assigned-roadmaps/:aid/previous/:itemId/done", async (req, res) =>
+    res.json(await catchUp.completePreviousItem(s, uid(req), param(req, "id"), param(req, "aid"), param(req, "itemId"))),
+  );
 }

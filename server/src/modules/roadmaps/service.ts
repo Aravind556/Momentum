@@ -11,6 +11,7 @@ import {
   type Category,
   type FollowPatch,
   type FollowSettings,
+  type RevisionConfig,
 } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import type { Tx } from "../../core/db/index.js";
@@ -38,6 +39,22 @@ type AccessRule = (db: Tx, userId: string, roadmapId: string) => Promise<boolean
 const accessRules: AccessRule[] = [];
 export function registerRoadmapAccessRule(rule: AccessRule) {
   accessRules.push(rule);
+}
+
+/**
+ * Items another module already puts on the learner's day plan for `day` (e.g. a roadmap assigned
+ * to their group). The personal roadmap source skips these, so nothing appears twice, and moves on
+ * to the learner's next item instead.
+ */
+type PlanExclusion = (db: Tx, userId: string, day: string) => Promise<Set<string>>;
+const planExclusions: PlanExclusion[] = [];
+export function registerRoadmapPlanExclusion(rule: PlanExclusion) {
+  planExclusions.push(rule);
+}
+export async function excludedFromPersonalPlan(db: Tx, userId: string, day: string): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (const rule of planExclusions) for (const id of await rule(db, userId, day)) out.add(id);
+  return out;
 }
 
 async function canView(db: Tx, userId: string, r: Roadmap): Promise<boolean> {
@@ -392,7 +409,19 @@ export async function unfollow(s: Services, userId: string, roadmapId: string) {
  * Marks an item learned and starts its spaced repetition. Called when a plan task for the item
  * is completed, or from the roadmap page. Idempotent.
  */
-export async function completeItem(s: Services, userId: string, itemId: string, verifiedBy: "submission" | "self", at?: Date) {
+/**
+ * Marks an item done for one learner and starts its revisions. Revisions follow the learner's own
+ * follow of the roadmap when there is one (their settings win); otherwise `opts.revision`, e.g.
+ * the setting of a group the roadmap is assigned in.
+ */
+export async function completeItem(
+  s: Services,
+  userId: string,
+  itemId: string,
+  verifiedBy: "submission" | "self",
+  at?: Date,
+  opts: { revision?: RevisionConfig | null } = {},
+) {
   const item = await s.db.query.roadmapItems.findFirst({ where: eq(roadmapItems.id, itemId) });
   if (!item) throw notFound("Item");
   const follow = await s.db.query.roadmapFollows.findFirst({ where: and(eq(roadmapFollows.roadmapId, item.roadmapId), eq(roadmapFollows.userId, userId)) });
@@ -405,7 +434,7 @@ export async function completeItem(s: Services, userId: string, itemId: string, 
     .insert(itemProgress)
     .values({ userId, itemId, status: "done", doneAt, verifiedBy })
     .onConflictDoUpdate({ target: [itemProgress.userId, itemProgress.itemId], set: { status: "done", doneAt, verifiedBy } });
-  const revision = follow ? revisionConfig(follow.settings) : null;
+  const revision = follow ? revisionConfig(follow.settings) : (opts.revision ?? null);
   if (revision) {
     await startCard(s.db, userId, { itemId, category: item.category, platform: item.platform, problemKey: item.problemKey, title: item.title, url: item.url }, revision, today);
   }

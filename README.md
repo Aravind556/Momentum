@@ -47,6 +47,7 @@ Most planners make you do the planning. Momentum builds your day for you, from y
 
 ### Groups
 - Invite codes, owner / admin / member roles, shared roadmaps (each member at their own pace).
+- **Assigned roadmaps:** an admin assigns a roadmap at one pace (e.g. 2 items on weekdays). Every member gets the same items each day, missed ones carry over as overdue, and late joiners start at the group's position with a **Previous items** list to catch up on. Progress stays in sync with a personal follow of the same roadmap.
 - **Group tasks:** a problem, a custom task or LeetCode's daily problem, once, daily or on weekdays, verified per member.
 - **Leaderboard** (7 days / 30 days / all time) with points by difficulty and bonuses for the first finishers.
 
@@ -185,7 +186,7 @@ server/   Express 5 · Drizzle · Postgres/PGlite · better-auth
   drizzle/       SQL migrations
   test/          API integration tests
 web/      React 19 · Vite · Tailwind 4 · TanStack Query (features/ mirrors the server modules)
-docs/     EXTENDING.md: recipes for adding platforms, daily sources, channels and more
+docs/     EXTENDING.md (recipes for adding platforms, daily sources, channels…) and LIMITATIONS.md
 ```
 
 - Each server module declares its routes, background jobs and event handlers. Modules react to each other through **domain events** rather than direct calls.
@@ -214,6 +215,10 @@ docs/     EXTENDING.md: recipes for adding platforms, daily sources, channels an
 | Sign-in fails and the app opened on port 5174 | Free port 5173 and restart `npm run dev`. |
 | PGlite `RuntimeError: Aborted()` | The local database was damaged by a hard kill. Delete `server/.data/pglite` (erases local data). |
 | A LeetCode problem won't verify | Make the profile public, then press **Sync now**. |
+
+## Known limitations
+
+Deliberate trade-offs, such as an assigned roadmap's "day" following the admin's timezone, are listed in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
 ## Contributing
 

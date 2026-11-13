@@ -6,7 +6,7 @@ import type { DailyCandidate, DailySource, DayContext, ForecastEntry } from "../
 import { ACCEPTED, type SubmissionData } from "../platforms/types.js";
 import type { Task } from "../tasks/tasks.js";
 import { finishedAt } from "../tasks/completions.js";
-import { completeItem, type RoadmapItem } from "./service.js";
+import { completeItem, excludedFromPersonalPlan, type RoadmapItem } from "./service.js";
 
 interface FollowRow {
   roadmapId: string;
@@ -45,7 +45,7 @@ async function roadmapsOfItems(db: Tx, itemIds: string[]) {
 }
 
 /** Latest accepted submission time per "platform:problemKey" (from synced history). */
-async function solvedAt(db: Tx, userId: string): Promise<Map<string, number>> {
+export async function solvedAt(db: Tx, userId: string): Promise<Map<string, number>> {
   const rows = await db
     .select({ provider: externalEvents.provider, occurredAt: externalEvents.occurredAt, data: externalEvents.data })
     .from(externalEvents)
@@ -92,6 +92,7 @@ export const roadmapDailySource: DailySource = {
     const queued = await queues(ctx.db, ctx.userId, follows);
     const solved = await solvedAt(ctx.db, ctx.userId);
     const closed = closedToday(ctx.todays);
+    const elsewhere = await excludedFromPersonalPlan(ctx.db, ctx.userId, ctx.day);
     const roadmapOf = await roadmapsOfItems(ctx.db, ctx.todays.map((t) => t.sourceId!).filter(Boolean));
     const out: DailyCandidate[] = [];
     for (const f of follows) {
@@ -107,7 +108,7 @@ export const roadmapDailySource: DailySource = {
       }
       for (const it of items) {
         if (remaining <= 0) break;
-        if (closed.has(it.id) || pinned.some((t) => t.sourceId === it.id)) continue;
+        if (closed.has(it.id) || elsewhere.has(it.id) || pinned.some((t) => t.sourceId === it.id)) continue;
         // Already solved (any time — an accepted submission is an accepted submission): mark it done
         // and let spaced repetition bring it back, instead of planning it as new.
         const solvedAt = it.platform && it.problemKey ? solved.get(`${it.platform}:${it.problemKey}`) : undefined;

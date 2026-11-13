@@ -117,7 +117,7 @@ export const groupPoints = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    sourceType: text("source_type", { enum: ["group_task", "roadmap_item"] }).notNull(),
+    sourceType: text("source_type", { enum: ["group_task", "roadmap_item", "assigned_item"] }).notNull(),
     sourceId: text("source_id").notNull(),
     /** Local date for group-task occurrences; "-" for roadmap items (earned once). */
     occurrence: text("occurrence").notNull(),
@@ -132,4 +132,55 @@ export const groupPoints = pgTable(
     uniqueIndex("group_points_unique").on(t.groupId, t.userId, t.sourceType, t.sourceId, t.occurrence),
     index("group_points_group_time").on(t.groupId, t.completedAt),
   ],
+);
+
+/**
+ * A roadmap assigned to the whole group by an admin, at one pace for everyone. Each group day the
+ * next items become every member's work for that day (see assigned-roadmaps.ts).
+ */
+export const groupRoadmaps = pgTable(
+  "group_roadmaps",
+  {
+    id: id(),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    roadmapId: text("roadmap_id")
+      .notNull()
+      .references(() => roadmaps.id, { onDelete: "cascade" }),
+    assignedBy: text("assigned_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    itemsPerDay: integer("items_per_day").notNull(),
+    /** ISO weekdays (1 = Monday) that are group days. */
+    weekdays: jsonb("weekdays").$type<number[]>().notNull(),
+    /** First group day (local date). Moved to the resume day when a paused assignment resumes. */
+    startDate: text("start_date").notNull(),
+    dueTime: text("due_time").notNull().default("23:59"),
+    /** Revisions for members who don't follow the roadmap themselves: frequent | decent | rare | off. */
+    revision: text("revision").notNull().default("decent"),
+    /** Whose calendar defines the group's "day" (the admin's timezone when assigned). */
+    timezone: text("timezone").notNull(),
+    status: text("status", { enum: ["active", "paused", "ended"] }).notNull().default("active"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("group_roadmap_unique").on(t.groupId, t.roadmapId), index("group_roadmaps_roadmap_idx").on(t.roadmapId)],
+);
+
+/**
+ * Which items each group day got, fixed the first time that day is needed, so later edits to the
+ * roadmap never rewrite past days and everyone always sees the same items for a day.
+ */
+export const groupRoadmapDays = pgTable(
+  "group_roadmap_days",
+  {
+    id: id(),
+    assignmentId: text("assignment_id")
+      .notNull()
+      .references(() => groupRoadmaps.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    itemIds: jsonb("item_ids").$type<string[]>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("group_roadmap_day_unique").on(t.assignmentId, t.day)],
 );
