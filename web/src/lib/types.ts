@@ -209,6 +209,10 @@ export interface GroupTaskToday {
   members: Array<{ user: PublicUser; done: boolean; completedAt: string | null; rank: number | null; points: number | null; verifiedBy: "submission" | "self" | null }>;
   /** Your own task for it on today's plan (null if it isn't on your plan). */
   mine: MyGroupTask | null;
+  /** The date this row is for: today, or yesterday while LeetCode's day for it is still running. */
+  occurrence: string;
+  /** Set for yesterday's POTD that can still be solved: when LeetCode's day for it ends. */
+  openUntil: string | null;
 }
 
 /** The viewer's own task for a piece of group work, ticked with the same check as on Today. */
@@ -333,6 +337,8 @@ export interface TodayItem {
   reminder: TaskReminder | null;
   /** Yesterday's work still open on its platform's day (LeetCode's POTD until 05:30 IST): when it closes. */
   openUntil: string | null;
+  /** For repeating tasks: the date this row is for (today, or yesterday while still open). */
+  occurrence: string | null;
 }
 
 export interface TodayView {

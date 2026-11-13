@@ -6,8 +6,8 @@ import { badRequest, notFound } from "../../core/http.js";
 import { manualSync, providerDayEnd, verifyTasks } from "../platforms/service.js";
 import { completeTask, reopenTask, skipTask } from "../tasks/completions.js";
 import { isRecurring, occursOn } from "../tasks/recurrence.js";
-import { getOwnedTask } from "../tasks/tasks.js";
-import { ensureDay, generatedTasksFor } from "./daily.js";
+import { getOwnedTask, type Task } from "../tasks/tasks.js";
+import { ensureDay, generatedTasksFor, openCarriedTasks } from "./daily.js";
 import { createManualBlock } from "./schedules.js";
 import { dailySources, type DailyCandidate, type DayContext } from "./sources.js";
 
@@ -45,6 +45,11 @@ export interface TodayItem {
    * ended (LeetCode's Problem of the Day until 24:00 UTC): when it closes. Not counted in today's summary.
    */
   openUntil: string | null;
+  /**
+   * For repeating tasks: the date this row is for (today, or yesterday while it's still open on its
+   * platform's day). Sent back when ticking, so the right day is checked. Null for one-off items.
+   */
+  occurrence: string | null;
 }
 
 /**
@@ -59,7 +64,7 @@ export async function getToday(s: Services, userId: string) {
   const generated = (await generatedTasksFor(s.db, userId, day)).filter((t) => t.status !== "cancelled");
   // Yesterday's work still open on its platform's day (e.g. LeetCode's POTD until 05:30 IST).
   const now = s.now();
-  const carried = (await generatedTasksFor(s.db, userId, addDays(day, -1))).filter((t) => t.status !== "cancelled" && (providerDayEnd(s, t) ?? 0) > now);
+  const carried = await openCarriedTasks(s, userId, day);
   const dayBlocks = await s.db
     .select()
     .from(scheduleBlocks)
@@ -68,8 +73,7 @@ export async function getToday(s: Services, userId: string) {
   const blockTaskIds = [...new Set(dayBlocks.map((b) => b.taskId).filter((x): x is string => !!x))];
 
   // The user's own tasks that belong to today: scheduled today, due by today, or recurring today.
-  const manual = (
-    await s.db
+  const manualAll = await s.db
       .select()
       .from(tasks)
       .where(
@@ -84,20 +88,32 @@ export async function getToday(s: Services, userId: string) {
             sql`${tasks.recurrence}->>'type' <> 'none'`,
           ),
         ),
-      )
-  ).filter((t) => !isRecurring(t.recurrence) || occursOn(t.recurrence, day));
+      );
+  const manual = manualAll.filter((t) => !isRecurring(t.recurrence) || occursOn(t.recurrence, day));
+  // Repeating tasks whose occurrence for yesterday is still open on the platform's day (a daily
+  // LeetCode POTD task until 05:30 IST): shown as yesterday's row so a solve after midnight counts.
+  const yesterday = addDays(day, -1);
+  const carriedOwn = manualAll.filter(
+    (t) => isRecurring(t.recurrence) && occursOn(t.recurrence, yesterday) && (providerDayEnd(s, { verification: t.verification, planDay: yesterday }) ?? 0) > now,
+  );
 
-  const all = [...carried, ...generated, ...manual];
-  const ids = all.map((t) => t.id);
+  type Row = { t: (typeof manual)[number]; occurrence: string | null; carried: boolean };
+  const rows: Row[] = [
+    ...carried.map((t) => ({ t, occurrence: null, carried: true })),
+    ...carriedOwn.map((t) => ({ t, occurrence: yesterday, carried: true })),
+    ...generated.map((t) => ({ t, occurrence: null, carried: false })),
+    ...manual.map((t) => ({ t, occurrence: isRecurring(t.recurrence) ? day : null, carried: false })),
+  ];
+  const ids = [...new Set(rows.map((r) => r.t.id))];
   const completions = ids.length
     ? await s.db.select().from(taskCompletions).where(and(inArray(taskCompletions.taskId, ids), isNull(taskCompletions.voidedAt)))
     : [];
   const reviewIds = generated.filter((t) => t.source === "review").map((t) => t.sourceId!);
   const cards = reviewIds.length ? await s.db.select().from(reviews).where(inArray(reviews.id, reviewIds)) : [];
 
-  const items: TodayItem[] = all.map((t) => {
+  const items: TodayItem[] = rows.map(({ t, occurrence, carried: isCarried }) => {
     const recurring = isRecurring(t.recurrence);
-    const c = completions.find((x) => x.taskId === t.id && (recurring ? x.occurrenceKey === day : true));
+    const c = completions.find((x) => x.taskId === t.id && (recurring ? x.occurrenceKey === occurrence : true));
     const block = dayBlocks.find((b) => b.taskId === t.id);
     const card = t.source === "review" ? cards.find((x) => x.id === t.sourceId) : undefined;
     const done = !!c && c.verificationStatus !== "pending" && c.outcome === "completed";
@@ -117,9 +133,10 @@ export async function getToday(s: Services, userId: string) {
       review: card ? { cardId: card.id, quality: card.lastReviewedOn === day ? card.lastQuality : null } : null,
       recurring,
       swappable: t.source !== "manual" && !dailySources().find((x) => x.key === t.source)?.fixed && !!t.category,
-      dueAt: !carried.includes(t) && t.dueAt && t.dueAt.getTime() <= bounds.end ? t.dueAt.toISOString() : null,
-      reminder: t.reminder ?? null,
-      openUntil: carried.includes(t) ? new Date(providerDayEnd(s, t)!).toISOString() : null,
+      dueAt: !isCarried && t.dueAt && t.dueAt.getTime() <= bounds.end ? t.dueAt.toISOString() : null,
+      reminder: isCarried ? null : (t.reminder ?? null),
+      openUntil: isCarried ? new Date(providerDayEnd(s, { verification: t.verification, planDay: occurrence ?? t.planDay })!).toISOString() : null,
+      occurrence,
     };
   });
   // Items with a time first (in time order), then the all-day ones.
@@ -138,13 +155,31 @@ export async function getToday(s: Services, userId: string) {
   };
 }
 
+/** `forDay` if it's yesterday's occurrence of a repeating task that's still open; otherwise a 400. */
+async function openEarlierDay(s: Services, task: Task, today: string, forDay: string): Promise<string> {
+  const open =
+    isRecurring(task.recurrence) &&
+    forDay === addDays(today, -1) &&
+    occursOn(task.recurrence, forDay) &&
+    (providerDayEnd(s, { verification: task.verification, planDay: forDay }) ?? 0) > s.now();
+  if (!open) throw badRequest("That day is no longer open", "day_closed");
+  return forDay;
+}
+
 /**
  * Ticking an item. LeetCode/Codeforces items are only completed when an accepted submission is
  * found (a sync runs first, respecting the cooldown); everything else is self-reported.
  */
-export async function checkItem(s: Services, userId: string, taskId: string): Promise<{ status: "done" | "verified" | "not_found_yet" }> {
+export async function checkItem(
+  s: Services,
+  userId: string,
+  taskId: string,
+  forDay?: string,
+): Promise<{ status: "done" | "verified" | "not_found_yet" }> {
   const task = await getOwnedTask(s.db, userId, taskId);
-  const { day } = await userDay(s, userId);
+  const { day: today } = await userDay(s, userId);
+  // A repeating task can also be ticked for yesterday while that day is still open on its platform.
+  const day = forDay && forDay !== today ? await openEarlierDay(s, task, today, forDay) : today;
   const occurrence = isRecurring(task.recurrence) ? { occurrenceDate: day } : {};
   const provider = task.verification.provider;
   if (provider === "none") {

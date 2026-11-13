@@ -228,10 +228,11 @@ export async function verifyTasks(s: Services, userId: string, provider: string)
         const to = custom?.to ?? local.end;
         windows.push({ key: d, date: d, from, to, closed: custom ? to <= now : d < today });
       }
-    } else if (t.planDay && adapter.occurrenceWindow?.(t.verification, t.planDay)) {
-      // Day-plan work with a provider-defined day (LeetCode's Problem of the Day for date D is
-      // live 00:00–24:00 UTC on D): the problem dated D, solved during LeetCode's day D.
-      const custom = adapter.occurrenceWindow(t.verification, t.planDay)!;
+    } else if (adapter.occurrenceWindow?.(t.verification, taskDate(t, tz))) {
+      // The platform defines its own day (LeetCode's Problem of the Day dated D is live 00:00–24:00
+      // UTC on D): the task counts that day's problem, solved during that day. One rule for every
+      // kind of task: day-plan work, group tasks and your own one-off tasks.
+      const custom = adapter.occurrenceWindow(t.verification, taskDate(t, tz))!;
       windows.push({ key: "once", from: custom.from, to: Math.min(custom.to, now), closed: custom.to <= now });
     } else {
       const from = (t.verifyFrom ?? t.earliestStartAt ?? t.createdAt).getTime();
@@ -272,8 +273,16 @@ export async function verifyTasks(s: Services, userId: string, provider: string)
 }
 
 /**
- * When a day-plan task's provider-defined day ends (e.g. LeetCode's Problem of the Day dated D:
- * 24:00 UTC on D), or null if it simply follows the learner's own day.
+ * The date a one-off task is for: its day-plan day, else the day it's due, else the day it was
+ * created (in the learner's timezone). Repeating tasks have one occurrence per date instead.
+ */
+export function taskDate(t: { planDay: string | null; dueAt: Date | null; createdAt: Date }, tz: string): string {
+  return t.planDay ?? instantToLocalDate((t.dueAt ?? t.createdAt).getTime(), tz);
+}
+
+/**
+ * When a task's platform-defined day ends (e.g. LeetCode's Problem of the Day dated D: 24:00 UTC on
+ * D) for the occurrence on `planDay`, or null if it simply follows the learner's own day.
  */
 export function providerDayEnd(s: Services, t: { verification: VerificationConfig; planDay: string | null }): number | null {
   if (!t.planDay || t.verification.provider === "none") return null;

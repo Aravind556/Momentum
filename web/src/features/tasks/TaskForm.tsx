@@ -267,7 +267,7 @@ function TaskForm({ task, defaults, onDone }: { task: Task | null; defaults?: Pa
       {f.check !== "none" && (
         <p className="-mt-3 text-xs text-muted">
           {f.check === "problem" && "Done once an accepted submission of this problem is found. "}
-          {f.check === "lc_potd" && "Done once you get that day's problem accepted. LeetCode's day runs on UTC (05:30–05:30 IST). "}
+          {f.check === "lc_potd" && "Done once you get that day's problem accepted. LeetCode's day runs on UTC (05:30–05:30 IST), so a solve after midnight still counts for the day before, until 05:30. "}
           {(f.check === "lc_count" || f.check === "cf_count") && "Done once enough distinct problems are accepted after the task starts. "}
           Ticking it syncs your submissions first, so it can't be ticked by hand — connect your account in Settings → Coding platforms.
         </p>

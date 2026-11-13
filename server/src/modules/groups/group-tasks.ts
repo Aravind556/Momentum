@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import {
+  addDays,
   basePoints,
   defaultMinutes,
   groupTaskInputSchema,
@@ -16,7 +17,8 @@ import { groupMembers, groupPoints, groupTasks, groups } from "../../core/db/sch
 import { badRequest, forbidden, notFound } from "../../core/http.js";
 import { tzOf } from "../planning/schedules.js";
 import type { DailyCandidate, DailySource, DayContext, ForecastEntry } from "../planning/sources.js";
-import { resolveProblem } from "../platforms/service.js";
+import { providerDayEnd, resolveProblem } from "../platforms/service.js";
+import { openCarriedTasks } from "../planning/daily.js";
 import { profilesByIds, publicProfile } from "../profile/service.js";
 import { finishedAt } from "../tasks/completions.js";
 import { viewerTasks } from "./my-tasks.js";
@@ -137,29 +139,55 @@ export async function listGroupTasks(s: Services, userId: string, groupId: strin
     .orderBy(asc(groupTasks.createdAt));
 }
 
-/** Today's group tasks with every member's status: done (when, points, verified) or pending. */
+/**
+ * Today's group tasks with every member's status: done (when, points, verified) or pending.
+ * Yesterday's occurrence is listed too while the task's platform day is still running (LeetCode's
+ * Problem of the Day until 05:30 IST), marked with `openUntil`, so a solve after midnight can still
+ * be checked here. It's the same "still open from yesterday" rule Today uses (openCarriedTasks).
+ */
 export async function groupToday(s: Services, userId: string, groupId: string) {
   await requireMember(s.db, groupId, userId);
   const tz = await tzOf(s.db, userId);
   const day = instantToLocalDate(s.now(), tz);
-  const tasks = (await listGroupTasks(s, userId, groupId)).filter((t) => occursOn(t, day));
+  const yesterday = addDays(day, -1);
+  const all = await listGroupTasks(s, userId, groupId);
+  const todays = all.filter((t) => occursOn(t, day));
+  // Yesterday's group work still open for the viewer (their own day-plan tasks), keyed by group task.
+  const carried = (await openCarriedTasks(s, userId, day)).filter((t) => t.source === "group");
+  const earlier = all.filter((t) => carried.some((c) => c.sourceId === t.id));
+  const entries = [
+    ...todays.map((t) => ({ t, day, openUntil: null as string | null })),
+    ...earlier.map((t) => ({ t, day: yesterday, openUntil: new Date(providerDayEnd(s, carried.find((c) => c.sourceId === t.id)!)!).toISOString() })),
+  ];
   const members = await activeMemberIds(s.db, groupId);
   const profs = await profilesByIds(s.db, members);
-  const finished = tasks.length
+  const finished = entries.length
     ? await s.db
         .select()
         .from(groupPoints)
-        .where(and(eq(groupPoints.groupId, groupId), eq(groupPoints.sourceType, "group_task"), inArray(groupPoints.sourceId, tasks.map((t) => t.id)), eq(groupPoints.occurrence, day)))
+        .where(
+          and(
+            eq(groupPoints.groupId, groupId),
+            eq(groupPoints.sourceType, "group_task"),
+            inArray(groupPoints.sourceId, entries.map((e) => e.t.id)),
+            inArray(groupPoints.occurrence, earlier.length ? [day, yesterday] : [day]),
+          ),
+        )
     : [];
-  const mine = await viewerTasks(s, userId, "group", tasks.map((t) => t.id));
+  const mineToday = await viewerTasks(s, userId, "group", todays.map((t) => t.id));
+  const mineEarlier = new Map(
+    carried.map((c) => [c.sourceId!, { taskId: c.id, done: c.status === "completed", check: c.verification.provider === "none" ? ("self" as const) : ("submission" as const) }]),
+  );
   return {
     day,
-    tasks: tasks.map((t) => {
-      const rows = finished.filter((f) => f.sourceId === t.id);
+    tasks: entries.map(({ t, day: occurrence, openUntil }) => {
+      const rows = finished.filter((f) => f.sourceId === t.id && f.occurrence === occurrence);
       return {
         ...t,
-        mine: mine.get(t.id) ?? null,
-        dueAt: new Date(localToInstant(day, parseHHMM(t.dueTime), tz)).toISOString(),
+        occurrence,
+        openUntil,
+        mine: (openUntil ? mineEarlier : mineToday).get(t.id) ?? null,
+        dueAt: new Date(localToInstant(occurrence, parseHHMM(t.dueTime), tz)).toISOString(),
         doneCount: rows.length,
         memberCount: members.length,
         members: members

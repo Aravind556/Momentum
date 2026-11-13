@@ -3,7 +3,7 @@ import { Check, Clock, Copy, Flame, LogOut, Plus, Share2, ShieldCheck, Trash2, U
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../lib/api";
-import { fmtMinutes, fmtTime, relativeTime, todayIn } from "../../lib/format";
+import { fmtDate, fmtMinutes, fmtTime, relativeTime, todayIn } from "../../lib/format";
 import { useAction, useMe, useTz } from "../../lib/hooks";
 import type { GroupOverview, GroupTaskToday, LeaderboardView, RoadmapSummary, SharedRoadmap } from "../../lib/types";
 import { Avatar } from "../../components/Avatar";
@@ -91,7 +91,7 @@ function GroupToday({ groupId, isAdmin }: { groupId: string; isAdmin: boolean })
       ) : (
         q.data.tasks.map((t) => (
           <Card
-            key={t.id}
+            key={`${t.id}:${t.occurrence}`}
             padded={false}
             title={
               <span className="flex min-w-0 items-center gap-2">
@@ -103,6 +103,7 @@ function GroupToday({ groupId, isAdmin }: { groupId: string; isAdmin: boolean })
                 ) : (
                   <span className="truncate">{t.title}</span>
                 )}
+                {t.openUntil && <Badge tone="warn">Yesterday</Badge>}
               </span>
             }
             actions={
@@ -110,19 +111,19 @@ function GroupToday({ groupId, isAdmin }: { groupId: string; isAdmin: boolean })
                 <span className="text-xs text-muted tabular">
                   {t.doneCount}/{t.memberCount} done
                 </span>
-                {isAdmin && <RowMenu label={`Actions for ${t.title}`} items={[{ label: "Archive task", icon: Trash2, danger: true, onSelect: () => confirm("Archive this task? Points already earned stay.") && archive.mutate(t.id) }]} />}
+                {isAdmin && !t.openUntil && <RowMenu label={`Actions for ${t.title}`} items={[{ label: "Archive task", icon: Trash2, danger: true, onSelect: () => confirm("Archive this task? Points already earned stay.") && archive.mutate(t.id) }]} />}
               </>
             }
           >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2">
               <p className="flex flex-wrap gap-x-2 text-xs text-muted">
-                <span>Due {fmtTime(t.dueAt, tz)}</span>
+                <span>{t.openUntil ? `Open until ${fmtTime(t.openUntil, tz)}` : `Due ${fmtTime(t.dueAt, tz)}`}</span>
                 <span>· {t.points} pts</span>
                 <span>· {fmtMinutes(t.estMinutes)}</span>
                 <span>· {t.repeat === "once" ? "once" : t.repeat === "daily" ? "every day" : "weekdays"}</span>
                 {t.kind === "potd" && (
                   <span>
-                    · LeetCode's problem for this date counts from {fmtTime(`${q.data.day}T00:00:00Z`, tz)} until {fmtTime(`${q.data.day}T00:00:00Z`, tz)} the next day (LeetCode's day)
+                    · counts LeetCode's problem for {fmtDate(t.occurrence, { month: "short", day: "numeric" })}, solved between {fmtTime(`${t.occurrence}T00:00:00Z`, tz)} and {fmtTime(`${t.occurrence}T00:00:00Z`, tz)} the next day
                   </span>
                 )}
               </p>

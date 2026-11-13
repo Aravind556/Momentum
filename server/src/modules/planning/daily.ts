@@ -1,5 +1,6 @@
 import { and, eq, gte, inArray, isNull, lt, lte, ne, notInArray } from "drizzle-orm";
 import {
+  addDays,
   busyToIntervals,
   computeFreeIntervals,
   computeWorkWindows,
@@ -277,6 +278,15 @@ export async function replanToday(s: Services, userId: string): Promise<PlanResu
 }
 
 /** Generated tasks for a day (helper for sources and the Today view). */
+/**
+ * Yesterday's generated work (roadmap items, group tasks…) that can still be finished because its
+ * platform's day hasn't ended: LeetCode's Problem of the Day dated yesterday, until 24:00 UTC.
+ */
+export async function openCarriedTasks(s: Services, userId: string, day: string): Promise<Task[]> {
+  const now = s.now();
+  return (await generatedTasksFor(s.db, userId, addDays(day, -1))).filter((t) => t.status !== "cancelled" && (providerDayEnd(s, t) ?? 0) > now);
+}
+
 export async function generatedTasksFor(db: Tx, userId: string, day: string): Promise<Task[]> {
   return db
     .select()

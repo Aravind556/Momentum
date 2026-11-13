@@ -104,7 +104,7 @@ function DayList({ items, classes, tz }: { items: TodayItem[]; classes: DayClass
     ...classes.map((c) => ({ at: Date.parse(c.start), item: null, cls: c })),
   ].sort((a, b) => a.at - b.at);
   const left = items.filter((i) => i.status === "pending").length;
-  const row = (i: TodayItem) => <TodayRow key={i.taskId} item={i} tz={tz} onSwap={() => setSwapFor(i)} onTime={() => setTimeFor(i)} onRemind={() => setRemindFor(i)} />;
+  const row = (i: TodayItem) => <TodayRow key={`${i.taskId}:${i.occurrence ?? ""}`} item={i} tz={tz} onSwap={() => setSwapFor(i)} onTime={() => setTimeFor(i)} onRemind={() => setRemindFor(i)} />;
   return (
     <Card
       padded={false}
@@ -176,7 +176,8 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
   // and the tick is taken back if it fails. Submission checks have to wait for the answer.
   const [shown, setShown] = useState<"done" | "pending" | null>(null);
   useEffect(() => setShown(null), [item.status]);
-  const check = useAction(() => api.post<{ status: "done" | "verified" | "not_found_yet" }>(`/today/tasks/${item.taskId}/check`), {
+  // Yesterday's row of a repeating task is ticked for yesterday, not today.
+  const check = useAction(() => api.post<{ status: "done" | "verified" | "not_found_yet" }>(`/today/tasks/${item.taskId}/check`, item.openUntil && item.occurrence ? { occurrence: item.occurrence } : undefined), {
     onSuccess: (r) => {
       refresh();
       if (r.status === "not_found_yet") {
@@ -278,7 +279,7 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
           </p>
           {done && item.review && <RateRevision cardId={item.review.cardId} quality={item.review.quality} />}
         </div>
-        <RowMenu label={`Actions for ${item.title}`} items={menu} />
+        {!item.openUntil && <RowMenu label={`Actions for ${item.title}`} items={menu} />}
       </div>
     </li>
   );
