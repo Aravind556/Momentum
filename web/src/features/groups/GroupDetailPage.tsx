@@ -12,6 +12,7 @@ import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, IconButton, Inp
 import { CategoryDot } from "../roadmaps/CategoryDot";
 import { DEFAULT_FOLLOW, FollowSettingsPicker, type FollowDraft } from "../roadmaps/FollowSettingsPicker";
 import { AssignedRoadmapsPanel, AssignedToday } from "./AssignedRoadmaps";
+import { MyTick } from "./MyTick";
 
 type Tab = "today" | "roadmaps" | "leaderboard" | "members";
 const TABS: Tab[] = ["today", "roadmaps", "leaderboard", "members"];
@@ -113,12 +114,20 @@ function GroupToday({ groupId, isAdmin }: { groupId: string; isAdmin: boolean })
               </>
             }
           >
-            <p className="flex flex-wrap gap-x-2 border-b border-line px-4 py-2 text-xs text-muted">
-              <span>Due {fmtTime(t.dueAt, tz)}</span>
-              <span>· {t.points} pts</span>
-              <span>· {fmtMinutes(t.estMinutes)}</span>
-              <span>· {t.repeat === "once" ? "once" : t.repeat === "daily" ? "every day" : "weekdays"}</span>
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2">
+              <p className="flex flex-wrap gap-x-2 text-xs text-muted">
+                <span>Due {fmtTime(t.dueAt, tz)}</span>
+                <span>· {t.points} pts</span>
+                <span>· {fmtMinutes(t.estMinutes)}</span>
+                <span>· {t.repeat === "once" ? "once" : t.repeat === "daily" ? "every day" : "weekdays"}</span>
+                {t.kind === "potd" && (
+                  <span>
+                    · LeetCode's problem for this date counts from {fmtTime(`${q.data.day}T00:00:00Z`, tz)} until {fmtTime(`${q.data.day}T00:00:00Z`, tz)} the next day (LeetCode's day)
+                  </span>
+                )}
+              </p>
+              <MyTick mine={t.mine} groupId={groupId} title={t.title} />
+            </div>
             <ul className="divide-y divide-line">
               {t.members.map((m) => (
                 <li key={m.user.userId} className="flex items-center gap-3 px-4 py-2">

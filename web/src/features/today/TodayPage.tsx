@@ -19,6 +19,7 @@ import { ComingUp } from "./ComingUp";
 const TODAY_KEYS = [["today"], ["roadmaps"], ["roadmap"], ["reviews"], ["progress"], ["forecast"], ...SCHEDULE_KEYS];
 
 const OVERDUE = "Overdue · ";
+const NOT_FOUND_YET = "No accepted submission found yet. Just solved it? New submissions can take a few minutes to show up on your profile — check again shortly.";
 
 /** The short tag shown on each row: where the item came from. */
 function tagOf(i: TodayItem): string {
@@ -180,7 +181,7 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
       refresh();
       if (r.status === "not_found_yet") {
         setShown(null);
-        toast("No accepted submission found yet. Solve it, then check again.", "info");
+        toast(NOT_FOUND_YET, "info");
       } else if (r.status === "verified") toast("Verified from your submission", "ok");
     },
     onError: () => setShown(null),
@@ -244,6 +245,7 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
           )}
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
             {overdue && <Badge tone="warn">Overdue</Badge>}
+            {item.openUntil && <Badge tone="warn">Yesterday</Badge>}
             <Tag>
               {item.source !== "manual" && item.source !== "group" && item.source !== "review" && item.category !== "other" && <CategoryDot category={item.category} />}
               {item.source === "review" && <Repeat className="mr-0.5 size-2.5" aria-hidden />}
@@ -252,7 +254,13 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
             {label && <span className="truncate">{label}</span>}
             {label && <span aria-hidden>·</span>}
             <span className="tabular">
-              {item.block ? `${fmtTime(item.block.startAt, tz)} · ` : item.dueAt ? `due ${fmtTime(item.dueAt, tz)} · ` : ""}
+              {item.openUntil && !done
+                ? `open until ${fmtTime(item.openUntil, tz)} · `
+                : item.block
+                  ? `${fmtTime(item.block.startAt, tz)} · `
+                  : item.dueAt
+                    ? `due ${fmtTime(item.dueAt, tz)} · `
+                    : ""}
               {fmtMinutes(item.estMinutes)}
             </span>
             {item.reminder && !done && !skipped && (

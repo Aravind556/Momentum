@@ -45,5 +45,16 @@ The **Previous items** section (items covered before a member joined) is read fr
 ### LeetCode uses an unofficial endpoint
 LeetCode has no public API, so verification relies on an undocumented endpoint that only shows the latest ~20 accepted submissions and could change without notice. After solving many problems at once, press **Sync now**. The integration can be turned off with `LEETCODE_ENABLED=false`.
 
+### LeetCode's Problem of the Day follows LeetCode's day, not yours
+LeetCode changes its Problem of the Day at **00:00 UTC** (05:30 IST); Momentum's day changes at your local midnight. To keep them in step:
+- a POTD task dated D counts **LeetCode's problem dated D**, solved during LeetCode's day D (05:30 IST on D to 05:30 IST on D+1);
+- yesterday's POTD stays open on Today, marked **Yesterday** with "open until 05:30", until LeetCode's day ends, so a solve after midnight counts for the right day;
+- today's POTD can't be completed between your midnight and 05:30 IST, because LeetCode hasn't released it yet.
+
+For timezones behind UTC (the Americas) it's the other way round: LeetCode's next problem appears during your evening, and it counts for the next day's task.
+
+### New submissions can take a few minutes to show up
+Momentum reads your accepted submissions from your public LeetCode profile, and "Sync now" / **Check** has a 60-second cooldown. If Check says "not found yet" right after you solve something, wait a couple of minutes and check again.
+
 ### CodeChef can't be verified
 CodeChef problem links are recognised, but there's no public API for submissions, so those items are ticked by hand.

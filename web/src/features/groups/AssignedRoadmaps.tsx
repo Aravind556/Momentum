@@ -10,6 +10,7 @@ import { Avatar } from "../../components/Avatar";
 import { RowMenu } from "../../components/RowMenu";
 import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Modal, Progress, Select, Spinner } from "../../components/ui";
 import { CategoryDot } from "../roadmaps/CategoryDot";
+import { MyTick } from "./MyTick";
 
 /**
  * Roadmaps assigned to the whole group: an admin sets one pace for everyone, and each group day
@@ -74,6 +75,7 @@ export function AssignedToday({ groupId }: { groupId: string }) {
                       <span className="text-xs text-muted tabular">
                         {it.doneCount}/{it.members.length} done
                       </span>
+                      <MyTick mine={it.mine} groupId={groupId} title={it.title} />
                     </div>
                     <ul className="mt-1.5 flex flex-wrap gap-1.5">
                       {it.members.map((m) => (

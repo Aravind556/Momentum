@@ -199,4 +199,26 @@ describe("assigned group roadmaps", () => {
     expect(await groupItems(ann)).toEqual([]);
     expect((await ann.get(`/api/groups/${groupId}/assigned-roadmaps`)).body).toEqual([]);
   });
+
+  it("lets members tick group work from the group page", async () => {
+    // A group task (custom = a plain tick) …
+    expect((await owner.post(`/api/groups/${groupId}/tasks`, { kind: "custom", title: "Read the DDIA intro", repeat: "once", startDate: "2026-10-26", dueTime: "21:00" })).status).toBe(201);
+    const before = (await ann.get(`/api/groups/${groupId}/today`)).body.tasks[0];
+    expect(before.mine).toMatchObject({ done: false, check: "self" });
+    expect((await ann.post(`/api/today/tasks/${before.mine.taskId}/check`)).body.status).toBe("done");
+    const after = (await ann.get(`/api/groups/${groupId}/today`)).body.tasks[0];
+    expect(after.mine.done).toBe(true);
+    expect(after.doneCount).toBe(1);
+
+    // … and an assigned roadmap's item, even before the member has opened Today.
+    const r = await owner.post(`/api/groups/${groupId}/assigned-roadmaps`, { roadmapId, itemsPerDay: 1, weekdays: [1, 2, 3, 4, 5, 6, 7], startDate: "2026-10-26" });
+    expect(r.status).toBe(201);
+    const dan = await member("Dan");
+    await join(dan);
+    const item = (await view(dan)).today[0];
+    expect(item.mine).toMatchObject({ done: false, check: "self" });
+    expect((await dan.post(`/api/today/tasks/${item.mine.taskId}/check`)).body.status).toBe("done");
+    const v = await view(owner);
+    expect(v.today[0].members.find((m: { user: { userId: string } }) => m.user.userId === dan.userId).done).toBe(true);
+  });
 });

@@ -12,7 +12,7 @@ import type { Services } from "../../core/context.js";
 import type { Tx } from "../../core/db/index.js";
 import { profiles, scheduleBlocks, taskCompletions, tasks } from "../../core/db/schema.js";
 import { notFound } from "../../core/http.js";
-import { verifyTasks } from "../platforms/service.js";
+import { providerDayEnd, verifyTasks } from "../platforms/service.js";
 import type { Task } from "../tasks/tasks.js";
 import { buildPlanningState, generateUserSchedule } from "./schedules.js";
 import { dailySources, type DailyCandidate, type DayContext } from "./sources.js";
@@ -56,7 +56,7 @@ export async function ensureDay(s: Services, userId: string, day: string, opts: 
     const prefs = preferencesSchema.parse(profile.preferences);
     const tz = profile.timezone;
 
-    await rollOver(tx, userId, day);
+    await rollOver(tx, userId, day, (t) => (providerDayEnd(s, t) ?? 0) > s.now());
 
     const generated = await tx
       .select()
@@ -235,10 +235,14 @@ export async function freeMinutesByDay(db: Tx, userId: string, days: string[], n
   return out;
 }
 
-/** Unfinished generated work from earlier days is cancelled; its items go back to their queues. */
-async function rollOver(tx: Tx, userId: string, day: string) {
-  const old = await tx
-    .select({ id: tasks.id })
+/**
+ * Unfinished generated work from earlier days is cancelled; its items go back to their queues.
+ * Work whose provider defines its own day stays open until that day ends (`stillOpen`): LeetCode's
+ * Problem of the Day dated yesterday can still be solved until 24:00 UTC (05:30 IST).
+ */
+async function rollOver(tx: Tx, userId: string, day: string, stillOpen: (t: Pick<Task, "verification" | "planDay">) => boolean) {
+  const rows = await tx
+    .select({ id: tasks.id, verification: tasks.verification, planDay: tasks.planDay })
     .from(tasks)
     .where(
       and(
@@ -248,6 +252,7 @@ async function rollOver(tx: Tx, userId: string, day: string) {
         notInArray(tasks.status, ["completed", "cancelled", "skipped"]),
       ),
     );
+  const old = rows.filter((t) => !stillOpen(t));
   if (!old.length) return;
   await tx.update(tasks).set({ status: "cancelled" }).where(inArray(tasks.id, old.map((t) => t.id)));
   await tx

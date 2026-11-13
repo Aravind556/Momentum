@@ -19,6 +19,7 @@ import type { DailyCandidate, DailySource, DayContext, ForecastEntry } from "../
 import { resolveProblem } from "../platforms/service.js";
 import { profilesByIds, publicProfile } from "../profile/service.js";
 import { finishedAt } from "../tasks/completions.js";
+import { viewerTasks } from "./my-tasks.js";
 import { recordGroupTaskPoints } from "./points.js";
 import { activeMemberIds, requireMember } from "./service.js";
 
@@ -150,12 +151,14 @@ export async function groupToday(s: Services, userId: string, groupId: string) {
         .from(groupPoints)
         .where(and(eq(groupPoints.groupId, groupId), eq(groupPoints.sourceType, "group_task"), inArray(groupPoints.sourceId, tasks.map((t) => t.id)), eq(groupPoints.occurrence, day)))
     : [];
+  const mine = await viewerTasks(s, userId, "group", tasks.map((t) => t.id));
   return {
     day,
     tasks: tasks.map((t) => {
       const rows = finished.filter((f) => f.sourceId === t.id);
       return {
         ...t,
+        mine: mine.get(t.id) ?? null,
         dueAt: new Date(localToInstant(day, parseHHMM(t.dueTime), tz)).toISOString(),
         doneCount: rows.length,
         memberCount: members.length,

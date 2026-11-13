@@ -1,9 +1,9 @@
 import { and, asc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
-import { instantToLocalDate, localDayBounds, localToInstant, parseHHMM, preferencesSchema, type TaskReminder } from "@momentum/shared";
+import { addDays, instantToLocalDate, localDayBounds, localToInstant, parseHHMM, preferencesSchema, type TaskReminder } from "@momentum/shared";
 import type { Services } from "../../core/context.js";
 import { integrationConnections, profiles, reviews, scheduleBlocks, taskCompletions, tasks } from "../../core/db/schema.js";
 import { badRequest, notFound } from "../../core/http.js";
-import { manualSync, verifyTasks } from "../platforms/service.js";
+import { manualSync, providerDayEnd, verifyTasks } from "../platforms/service.js";
 import { completeTask, reopenTask, skipTask } from "../tasks/completions.js";
 import { isRecurring, occursOn } from "../tasks/recurrence.js";
 import { getOwnedTask } from "../tasks/tasks.js";
@@ -40,6 +40,11 @@ export interface TodayItem {
   dueAt: string | null;
   /** This task's own reminder, if any (sent only while it's still open). */
   reminder: TaskReminder | null;
+  /**
+   * Set for yesterday's work that can still be finished today because its platform's day hasn't
+   * ended (LeetCode's Problem of the Day until 24:00 UTC): when it closes. Not counted in today's summary.
+   */
+  openUntil: string | null;
 }
 
 /**
@@ -52,6 +57,9 @@ export async function getToday(s: Services, userId: string) {
   const bounds = localDayBounds(day, tz);
 
   const generated = (await generatedTasksFor(s.db, userId, day)).filter((t) => t.status !== "cancelled");
+  // Yesterday's work still open on its platform's day (e.g. LeetCode's POTD until 05:30 IST).
+  const now = s.now();
+  const carried = (await generatedTasksFor(s.db, userId, addDays(day, -1))).filter((t) => t.status !== "cancelled" && (providerDayEnd(s, t) ?? 0) > now);
   const dayBlocks = await s.db
     .select()
     .from(scheduleBlocks)
@@ -79,7 +87,7 @@ export async function getToday(s: Services, userId: string) {
       )
   ).filter((t) => !isRecurring(t.recurrence) || occursOn(t.recurrence, day));
 
-  const all = [...generated, ...manual];
+  const all = [...carried, ...generated, ...manual];
   const ids = all.map((t) => t.id);
   const completions = ids.length
     ? await s.db.select().from(taskCompletions).where(and(inArray(taskCompletions.taskId, ids), isNull(taskCompletions.voidedAt)))
@@ -109,20 +117,22 @@ export async function getToday(s: Services, userId: string) {
       review: card ? { cardId: card.id, quality: card.lastReviewedOn === day ? card.lastQuality : null } : null,
       recurring,
       swappable: t.source !== "manual" && !dailySources().find((x) => x.key === t.source)?.fixed && !!t.category,
-      dueAt: t.dueAt && t.dueAt.getTime() <= bounds.end ? t.dueAt.toISOString() : null,
+      dueAt: !carried.includes(t) && t.dueAt && t.dueAt.getTime() <= bounds.end ? t.dueAt.toISOString() : null,
       reminder: t.reminder ?? null,
+      openUntil: carried.includes(t) ? new Date(providerDayEnd(s, t)!).toISOString() : null,
     };
   });
   // Items with a time first (in time order), then the all-day ones.
   items.sort((a, b) => (a.block?.startAt ?? "~").localeCompare(b.block?.startAt ?? "~") || (a.dueAt ?? "~").localeCompare(b.dueAt ?? "~"));
 
+  const todays = items.filter((i) => !i.openUntil);
   return {
     day,
     items,
     summary: {
-      total: items.filter((i) => i.status !== "skipped").length,
-      done: items.filter((i) => i.status === "done").length,
-      minutesPlanned: items.filter((i) => i.status !== "skipped").reduce((n, i) => n + i.estMinutes, 0),
+      total: todays.filter((i) => i.status !== "skipped").length,
+      done: todays.filter((i) => i.status === "done").length,
+      minutesPlanned: todays.filter((i) => i.status !== "skipped").reduce((n, i) => n + i.estMinutes, 0),
     },
     deferred: plan.deferred,
   };

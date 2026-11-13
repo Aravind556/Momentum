@@ -229,6 +229,63 @@ describe("Integrations — LeetCode verification", () => {
     expect(await status()).toBe("verified");
   });
 
+  it("keeps a group POTD open until LeetCode's day ends, and matches it to the right date", async () => {
+    // Late-night solve (IST): LeetCode's 20 Oct problem is still live until 05:30 IST on 21 Oct.
+    const u = await signUp(t.app, "NightOwl"); // Asia/Kolkata
+    t.clock.now = Date.parse(IST(DAY, "10:00"));
+    provider.mode = "ok";
+    provider.submissions = [];
+    provider.potd = [
+      { date: "2026-10-20", question: { titleSlug: "potd-twenty", title: "Twenty" } },
+      { date: "2026-10-21", question: { titleSlug: "potd-twentyone", title: "Twenty-one" } },
+    ];
+    await u.put("/api/integrations/leetcode", { handle: "nightowl" });
+    const g = await u.post("/api/groups", { name: "Night owls" });
+    expect((await u.post(`/api/groups/${g.body.id}/tasks`, { kind: "potd", repeat: "daily", startDate: DAY, dueTime: "23:59" })).status).toBe(201);
+    type Item = { taskId: string; source: string; status: string; openUntil: string | null };
+    const items = async () => (await u.get("/api/today")).body.items as Item[];
+    const potds = async () => (await items()).filter((i) => i.source === "group");
+    expect(await potds()).toHaveLength(1);
+
+    // 00:20 IST on 21 Oct: they solve the 20 Oct problem (18:50 UTC on 20 Oct).
+    t.clock.now = Date.parse(IST("2026-10-21", "00:30"));
+    provider.submissions = [{ id: "n1", title: "Twenty", titleSlug: "potd-twenty", timestamp: String(Date.parse("2026-10-20T18:50:00Z") / 1000) }];
+    let list = await potds();
+    const yesterday = list.find((i) => i.openUntil)!;
+    const today = list.find((i) => !i.openUntil)!;
+    expect(yesterday.openUntil).toBe("2026-10-21T00:00:00.000Z"); // 05:30 IST
+    // Ticking yesterday's counts; it doesn't tick today's (today's problem isn't even out yet).
+    expect((await u.post(`/api/today/tasks/${yesterday.taskId}/check`)).body.status).toBe("verified");
+    expect((await u.post(`/api/today/tasks/${today.taskId}/check`)).body.status).toBe("not_found_yet");
+    list = await potds();
+    expect(list.find((i) => i.taskId === yesterday.taskId)!.status).toBe("done");
+    expect(list.find((i) => i.taskId === today.taskId)!.status).toBe("pending");
+    // Today's summary only counts today's work.
+    expect((await u.get("/api/today")).body.summary.done).toBe(0);
+
+    // After 05:30 IST yesterday's is gone from Today; solving the 21 Oct problem ticks today's.
+    t.clock.now = Date.parse(IST("2026-10-21", "09:00"));
+    list = await potds();
+    expect(list).toHaveLength(1);
+    expect(list[0]!.taskId).toBe(today.taskId);
+    provider.submissions.push({ id: "n2", title: "Twenty-one", titleSlug: "potd-twentyone", timestamp: String(Date.parse("2026-10-21T03:00:00Z") / 1000) });
+    t.clock.now += 2 * MIN; // past the manual-sync cooldown
+    expect((await u.post(`/api/today/tasks/${today.taskId}/check`)).body.status).toBe("verified");
+  });
+
+  it("closes yesterday's unsolved POTD once LeetCode's day ends", async () => {
+    const u = await signUp(t.app, "Sleeper");
+    t.clock.now = Date.parse(IST("2026-10-22", "10:00"));
+    provider.submissions = [];
+    const g = await u.post("/api/groups", { name: "Sleepers" });
+    await u.post(`/api/groups/${g.body.id}/tasks`, { kind: "potd", repeat: "daily", startDate: "2026-10-22", dueTime: "23:59" });
+    const potds = async () => ((await u.get("/api/today")).body.items as Array<{ source: string; openUntil: string | null }>).filter((i) => i.source === "group");
+    t.clock.now = Date.parse(IST("2026-10-23", "01:00"));
+    expect((await potds()).filter((i) => i.openUntil)).toHaveLength(1);
+    t.clock.now = Date.parse(IST("2026-10-23", "06:00"));
+    expect((await potds()).filter((i) => i.openUntil)).toHaveLength(0);
+  });
+
   it("disconnect stops sync", async () => {
     const u = await signUp(t.app, "Leaver");
     provider.mode = "ok";

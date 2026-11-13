@@ -24,6 +24,7 @@ import { profilesByIds, publicProfile } from "../profile/service.js";
 import { solvedAt } from "../roadmaps/daily-source.js";
 import { completeItem, requireViewable } from "../roadmaps/service.js";
 import { finishedAt } from "../tasks/completions.js";
+import { viewerTasks } from "./my-tasks.js";
 import { recordAssignedItemPoints } from "./points.js";
 import { activeMemberIds, requireMember } from "./service.js";
 
@@ -436,6 +437,7 @@ export async function listAssignments(s: Services, userId: string, groupId: stri
           .where(and(eq(groupPoints.groupId, groupId), eq(groupPoints.sourceType, "assigned_item"), inArray(groupPoints.sourceId, todayIds), eq(groupPoints.occurrence, today)))
       : [];
     const myJoin = joinDayOf(me.joinedAt, a);
+    const mine = await viewerTasks(s, userId, "group-roadmap", todayIds);
     const sinceJoin = (join: string) => rows.filter((r) => r.day >= join).flatMap((r) => r.itemIds);
 
     out.push({
@@ -462,6 +464,7 @@ export async function listAssignments(s: Services, userId: string, groupId: stri
           difficulty: it?.difficulty ?? null,
           estMinutes: it?.estMinutes ?? 0,
           doneCount: members.filter((m) => doneBy(m.userId, id)).length,
+          mine: mine.get(id) ?? null,
           members: members
             .filter((m) => joinDayOf(m.joinedAt, a) <= today)
             .map((m) => {

@@ -1,5 +1,5 @@
 import { and, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
-import { addDays, dateRange, defaultMinutes, instantToLocalDate, localDayBounds, parseProblemUrl } from "@momentum/shared";
+import { addDays, dateRange, defaultMinutes, instantToLocalDate, localDayBounds, parseProblemUrl, type VerificationConfig } from "@momentum/shared";
 import { externalEvents, integrationConnections, profiles, taskCompletions, tasks } from "../../core/db/schema.js";
 import { badRequest, HttpError, notFound } from "../../core/http.js";
 import { asBackground } from "./limiter.js";
@@ -228,6 +228,11 @@ export async function verifyTasks(s: Services, userId: string, provider: string)
         const to = custom?.to ?? local.end;
         windows.push({ key: d, date: d, from, to, closed: custom ? to <= now : d < today });
       }
+    } else if (t.planDay && adapter.occurrenceWindow?.(t.verification, t.planDay)) {
+      // Day-plan work with a provider-defined day (LeetCode's Problem of the Day for date D is
+      // live 00:00–24:00 UTC on D): the problem dated D, solved during LeetCode's day D.
+      const custom = adapter.occurrenceWindow(t.verification, t.planDay)!;
+      windows.push({ key: "once", from: custom.from, to: Math.min(custom.to, now), closed: custom.to <= now });
     } else {
       const from = (t.verifyFrom ?? t.earliestStartAt ?? t.createdAt).getTime();
       // Day-plan work still counts if finished after its due time (it simply ranks after earlier finishers).
@@ -264,6 +269,15 @@ export async function verifyTasks(s: Services, userId: string, provider: string)
     }
   }
   return verified;
+}
+
+/**
+ * When a day-plan task's provider-defined day ends (e.g. LeetCode's Problem of the Day dated D:
+ * 24:00 UTC on D), or null if it simply follows the learner's own day.
+ */
+export function providerDayEnd(s: Services, t: { verification: VerificationConfig; planDay: string | null }): number | null {
+  if (!t.planDay || t.verification.provider === "none") return null;
+  return s.platforms.get(t.verification.provider)?.occurrenceWindow?.(t.verification, t.planDay)?.to ?? null;
 }
 
 /**

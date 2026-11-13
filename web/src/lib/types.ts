@@ -207,6 +207,15 @@ export interface GroupTaskToday {
   doneCount: number;
   memberCount: number;
   members: Array<{ user: PublicUser; done: boolean; completedAt: string | null; rank: number | null; points: number | null; verifiedBy: "submission" | "self" | null }>;
+  /** Your own task for it on today's plan (null if it isn't on your plan). */
+  mine: MyGroupTask | null;
+}
+
+/** The viewer's own task for a piece of group work, ticked with the same check as on Today. */
+export interface MyGroupTask {
+  taskId: string;
+  done: boolean;
+  check: "submission" | "self";
 }
 
 export interface SharedRoadmap {
@@ -322,6 +331,8 @@ export interface TodayItem {
   swappable: boolean;
   dueAt: string | null;
   reminder: TaskReminder | null;
+  /** Yesterday's work still open on its platform's day (LeetCode's POTD until 05:30 IST): when it closes. */
+  openUntil: string | null;
 }
 
 export interface TodayView {
@@ -357,6 +368,7 @@ export interface AssignedRoadmap {
     estMinutes: number;
     doneCount: number;
     members: Array<{ user: PublicUser; done: boolean; completedAt: string | null; rank: number | null; points: number | null; verifiedBy: "submission" | "self" | null }>;
+    mine: MyGroupTask | null;
   }>;
   members: Array<{ user: PublicUser; done: number; of: number }>;
   myOverdue: number;
