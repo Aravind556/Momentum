@@ -1,11 +1,11 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Bell, Check, Clock, Flame, Loader2, Lock, Play, Plus, Repeat, ShieldCheck, Shuffle, SkipForward, Timer, Undo2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CATEGORY_META, type Category } from "@momentum/shared";
 import { api, errorMessage } from "../../lib/api";
 import { fmtDate, fmtMinutes, fmtTime, localToIso, todayIn } from "../../lib/format";
-import { SCHEDULE_KEYS, useAction, useMe, useTz } from "../../lib/hooks";
+import { patchToday, SCHEDULE_KEYS, useAction, useMe, useTz } from "../../lib/hooks";
 import type { FocusSession, ScheduleView, TodayItem, TodayView } from "../../lib/types";
 import { RowMenu, type RowMenuItem } from "../../components/RowMenu";
 import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Modal, Progress, Spinner, useToast } from "../../components/ui";
@@ -17,6 +17,14 @@ import { ComingUp } from "./ComingUp";
 
 /** Everything the day plan touches; invalidated after any change on this page. */
 const TODAY_KEYS = [["today"], ["roadmaps"], ["roadmap"], ["reviews"], ["progress"], ["forecast"], ...SCHEDULE_KEYS];
+
+/**
+ * After a change on Today: the list refetches now; everything else (progress, roadmaps, calendar,
+ * forecast) is only marked out of date and refetches when it's next shown, so one tick doesn't
+ * trigger half a dozen heavy requests.
+ */
+const refreshToday = (qc: QueryClient) =>
+  TODAY_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k, refetchType: k[0] === "today" ? "active" : "none" }));
 
 const OVERDUE = "Overdue · ";
 const NOT_FOUND_YET = "No accepted submission found yet. Just solved it? New submissions can take a few minutes to show up on your profile — check again shortly.";
@@ -36,7 +44,13 @@ export function TodayPage() {
   const navigate = useNavigate();
   const today = todayIn(tz);
   const [adding, setAdding] = useState(false);
-  const q = useQuery({ queryKey: ["today"], queryFn: () => api.get<TodayView>("/today") });
+  // Answers at once even while the server is still re-planning after a change (`planning`); then
+  // asks again every second or so until the rebuild is over, so late additions still appear.
+  const q = useQuery({
+    queryKey: ["today"],
+    queryFn: () => api.get<TodayView>("/today?fast=1"),
+    refetchInterval: (query) => (query.state.data?.planning ? 1200 : false),
+  });
   const schedule = useSchedule(today, today);
 
   if (q.isPending) return <Spinner />;
@@ -170,24 +184,33 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
   const qc = useQueryClient();
   // Today's list refetches right away; everything else (progress, roadmaps, calendar, forecast)
   // is only marked out of date and refetches when it's next shown.
-  const refresh = () =>
-    TODAY_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k, refetchType: k[0] === "today" ? "active" : "none" }));
+  const refresh = () => refreshToday(qc);
   // Ticking a task you mark done yourself shows at once; the server confirms in the background
   // and the tick is taken back if it fails. Submission checks have to wait for the answer.
   const [shown, setShown] = useState<"done" | "pending" | null>(null);
   useEffect(() => setShown(null), [item.status]);
   // Yesterday's row of a repeating task is ticked for yesterday, not today.
+  const me = { taskId: item.taskId, occurrence: item.occurrence };
   const check = useAction(() => api.post<{ status: "done" | "verified" | "not_found_yet" }>(`/today/tasks/${item.taskId}/check`, item.openUntil && item.occurrence ? { occurrence: item.occurrence } : undefined), {
     onSuccess: (r) => {
-      refresh();
       if (r.status === "not_found_yet") {
         setShown(null);
         toast(NOT_FOUND_YET, "info");
-      } else if (r.status === "verified") toast("Verified from your submission", "ok");
+        return;
+      }
+      patchToday(qc, me, { status: "done", verifiedBy: r.status === "verified" ? "submission" : "self", completedAt: new Date().toISOString() });
+      refresh();
+      if (r.status === "verified") toast("Verified from your submission", "ok");
     },
     onError: () => setShown(null),
   });
-  const uncheck = useAction(() => api.post(`/today/tasks/${item.taskId}/uncheck`), { onSuccess: refresh, onError: () => setShown(null) });
+  const uncheck = useAction(() => api.post(`/today/tasks/${item.taskId}/uncheck`), {
+    onSuccess: () => {
+      patchToday(qc, me, { status: "pending", verifiedBy: null, completedAt: null });
+      refresh();
+    },
+    onError: () => setShown(null),
+  });
   const tick = () => {
     if (item.check === "self") setShown("done");
     check.mutate();
@@ -196,8 +219,20 @@ function TodayRow({ item, tz, onSwap, onTime, onRemind }: { item: TodayItem; tz:
     setShown("pending");
     uncheck.mutate();
   };
-  const skip = useAction(() => api.post(`/today/tasks/${item.taskId}/skip`), { onSuccess: refresh, success: "Skipped for today" });
-  const clearTime = useAction(() => api.del(`/today/tasks/${item.taskId}/time`), { onSuccess: refresh, success: "Open any time today" });
+  const skip = useAction(() => api.post(`/today/tasks/${item.taskId}/skip`), {
+    onSuccess: () => {
+      patchToday(qc, me, { status: "skipped" });
+      refresh();
+    },
+    success: "Skipped for today",
+  });
+  const clearTime = useAction(() => api.del(`/today/tasks/${item.taskId}/time`), {
+    onSuccess: () => {
+      patchToday(qc, me, { block: null });
+      refresh();
+    },
+    success: "Open any time today",
+  });
   const focus = useAction(() => api.post("/focus-sessions", { taskId: item.taskId, plannedMinutes: Math.min(item.estMinutes, 240) }), {
     onSuccess: () => {
       refresh();
@@ -329,10 +364,16 @@ function SetTimeModal({ item, tz, onClose }: { item: TodayItem | null; tz: strin
     setStart(item.block ? fmtTime(item.block.startAt, tz) : nextHalfHour(tz));
     setMinutes(item.block ? Math.round((Date.parse(item.block.endAt) - Date.parse(item.block.startAt)) / 60_000) : item.estMinutes);
   }, [item, tz]);
+  const qc = useQueryClient();
   const save = useAction(() => api.put(`/today/tasks/${item!.taskId}/time`, { start, minutes }), {
-    invalidate: TODAY_KEYS,
     success: `Set for ${start}`,
-    onSuccess: onClose,
+    onSuccess: () => {
+      refreshToday(qc);
+      // Show the new time at once; the refetch brings the exact block.
+      const startAt = localToIso(todayIn(tz), start, tz);
+      patchToday(qc, { taskId: item!.taskId, occurrence: item!.occurrence }, { block: { startAt, endAt: new Date(Date.parse(startAt) + minutes * 60_000).toISOString(), status: "planned" } });
+      onClose();
+    },
   });
   return (
     <Modal
@@ -368,9 +409,17 @@ function ReminderModal({ item, tz, onClose }: { item: TodayItem | null; tz: stri
     if (!item) return;
     setTime(item.reminder?.type === "at" ? fmtTime(item.reminder.at, tz) : item.reminder?.type === "daily" ? item.reminder.time : nextHalfHour(tz));
   }, [item, tz]);
+  const qc = useQueryClient();
   const save = useAction(
     (reminder: unknown) => api.put<{ reminder: unknown }>(`/tasks/${item!.taskId}/reminder`, { reminder }),
-    { invalidate: TODAY_KEYS, onSuccess: onClose, success: (r) => (r.reminder ? `Reminder set for ${time}` : "Reminder removed") },
+    {
+      onSuccess: (r) => {
+        refreshToday(qc);
+        patchToday(qc, { taskId: item!.taskId, occurrence: item!.occurrence }, { reminder: (r.reminder ?? null) as TodayItem["reminder"] });
+        onClose();
+      },
+      success: (r) => (r.reminder ? `Reminder set for ${time}` : "Reminder removed"),
+    },
   );
   const daily = item?.reminder?.type === "daily";
   return (
@@ -435,7 +484,7 @@ function SwapModal({ item, onClose }: { item: TodayItem | null; onClose: () => v
     setBusy(o.sourceId);
     try {
       await api.post(`/today/tasks/${item!.taskId}/swap`, { source: o.source, sourceId: o.sourceId });
-      TODAY_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k }));
+      refreshToday(qc);
       toast(`Swapped in "${o.title}"`, "ok");
       onClose();
     } catch (e) {

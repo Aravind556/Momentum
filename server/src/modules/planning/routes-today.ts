@@ -8,7 +8,8 @@ import { forecast } from "./forecast.js";
 import * as today from "./today.js";
 
 export function todayRoutes(r: Router, s: Services) {
-  r.get("/today", async (req, res) => res.json(await today.getToday(s, uid(req))));
+  // ?fast=1: answer now, even if a re-plan is still running (the reply says so: `planning`).
+  r.get("/today", async (req, res) => res.json(await today.getToday(s, uid(req), { wait: req.query.fast !== "1" })));
   r.get("/forecast", async (req, res) => res.json(await forecast(s, uid(req), Number(req.query.days ?? 14) || 14)));
   r.post("/today/replan", async (req, res) => res.json(await replanToday(s, uid(req))));
   r.post("/today/tasks/:id/check", async (req, res) => {

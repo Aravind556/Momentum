@@ -12,6 +12,8 @@ const provider = {
   submissions: [] as Array<{ id: string; title: string; titleSlug: string; timestamp: string }>,
   potd: [] as Array<{ date: string; question: { titleSlug: string; title: string } }>,
   calls: 0,
+  /** Calls for LeetCode's daily-problem lists (slow: one per second at the real rate limit). */
+  dailyCalls: 0,
 };
 const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
   const url = String(input);
@@ -24,6 +26,7 @@ const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => 
       return Response.json({ data: { matchedUser: body.variables.username === "ghost" ? null : { username: body.variables.username } } });
     }
     if (body.query.includes("recentAcSubmissionList")) return Response.json({ data: { recentAcSubmissionList: provider.submissions } });
+    if (body.query.includes("activeDailyCodingChallengeQuestion") || body.query.includes("dailyCodingChallengeV2")) provider.dailyCalls += 1;
     if (body.query.includes("activeDailyCodingChallengeQuestion")) {
       return Response.json({ data: { activeDailyCodingChallengeQuestion: provider.potd[provider.potd.length - 1] ?? null } });
     }
@@ -355,6 +358,69 @@ describe("Integrations — LeetCode verification", () => {
     t.clock.now += 2 * MIN;
     expect((await u.post("/api/integrations/leetcode/sync")).body.verified).toBe(1);
     expect(await state(late.body.id)).toBe("verified");
+  });
+
+  it("doesn't re-fetch LeetCode's daily problems on every check", async () => {
+    const u = await signUp(t.app, "Syncer");
+    t.clock.now = Date.parse("2026-10-28T10:00:00Z");
+    provider.mode = "ok";
+    provider.submissions = [];
+    provider.potd = ["2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28"].map((date) => ({ date, question: { titleSlug: `potd-${date}`, title: date } }));
+    await u.put("/api/integrations/leetcode", { handle: "syncer" });
+    await u.post("/api/tasks", { title: "POTD", estimatedMinutes: 40, recurrence: { type: "daily" }, verification: { provider: "leetcode", mode: "potd" } });
+    t.clock.now += 2 * MIN;
+    await u.post("/api/integrations/leetcode/sync"); // makes sure the daily problems are stored
+    const before = provider.dailyCalls;
+    for (let i = 0; i < 3; i++) {
+      t.clock.now += 2 * MIN; // past the sync cooldown, same UTC day
+      expect((await u.post("/api/integrations/leetcode/sync")).status).toBe(200);
+    }
+    expect(provider.dailyCalls).toBe(before);
+    // A new UTC day needs the new day's problem, so it fetches again.
+    t.clock.now = Date.parse("2026-10-29T00:30:00Z");
+    provider.potd.push({ date: "2026-10-29", question: { titleSlug: "potd-2026-10-29", title: "2026-10-29" } });
+    await u.post("/api/integrations/leetcode/sync");
+    expect(provider.dailyCalls).toBeGreaterThan(before);
+  });
+
+  it("keeps a task you finished today on Today (and doesn't wait for the plan rebuild to reply)", async () => {
+    const u = await signUp(t.app, "Finisher");
+    await setHours(u, "09:00", "21:00");
+    t.clock.now = Date.parse(IST("2026-10-30", "10:00"));
+    // Due tomorrow, so it's on today's list only through its time block.
+    const made = await u.post("/api/tasks", { title: "Write report", estimatedMinutes: 30, dueAt: IST("2026-10-31", "18:00") });
+    await u.post("/api/today/replan");
+    type Item = { taskId: string; title: string; status: string };
+    const row = async () => ((await u.get("/api/today")).body.items as Item[]).find((i) => i.title === "Write report");
+    expect((await row())?.status).toBe("pending");
+    expect((await u.post(`/api/today/tasks/${made.body.id}/check`)).body.status).toBe("done");
+    // The tick survives the background re-plan: the row is still there, done.
+    expect((await row())?.status).toBe("done");
+    expect((await u.get("/api/today")).body.summary).toMatchObject({ done: 1 });
+  });
+
+  it("can fetch Today without waiting for a re-plan, and says when one is still running", async () => {
+    const u = await signUp(t.app, "Quick");
+    await setHours(u, "09:00", "21:00");
+    t.clock.now = Date.parse(IST("2026-11-02", "10:00"));
+    const made = await u.post("/api/tasks", { title: "Quick one", estimatedMinutes: 20, dueAt: IST("2026-11-02", "20:00") });
+    await u.get("/api/today"); // settled
+    expect((await u.post(`/api/today/tasks/${made.body.id}/check`)).body.status).toBe("done");
+    // Straight after the tick: the list answers at once with the tick already in it.
+    const fast = await u.get("/api/today?fast=1");
+    expect(fast.status).toBe(200);
+    expect(typeof fast.body.planning).toBe("boolean");
+    expect(fast.body.items.find((i: { title: string }) => i.title === "Quick one").status).toBe("done");
+    // Asking again until the re-plan is over reaches the same list as the waiting version.
+    let latest = fast.body;
+    for (let i = 0; i < 100 && latest.planning; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      latest = (await u.get("/api/today?fast=1")).body;
+    }
+    expect(latest.planning).toBe(false);
+    const waited = (await u.get("/api/today")).body;
+    expect(waited.planning).toBe(false);
+    expect(latest.items.map((i: { taskId: string; status: string }) => [i.taskId, i.status])).toEqual(waited.items.map((i: { taskId: string; status: string }) => [i.taskId, i.status]));
   });
 
   it("closes yesterday's unsolved POTD once LeetCode's day ends", async () => {

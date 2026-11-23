@@ -7,7 +7,8 @@ import { manualSync, providerDayEnd, verifyTasks } from "../platforms/service.js
 import { completeTask, reopenTask, skipTask } from "../tasks/completions.js";
 import { isRecurring, occursOn } from "../tasks/recurrence.js";
 import { getOwnedTask, type Task } from "../tasks/tasks.js";
-import { ensureDay, generatedTasksFor, openCarriedTasks } from "./daily.js";
+import { deferredOn, ensureDay, generatedTasksFor, openCarriedTasks } from "./daily.js";
+import { isReplanning, replanSettled } from "./replan.js";
 import { createManualBlock } from "./schedules.js";
 import { dailySources, type DailyCandidate, type DayContext } from "./sources.js";
 
@@ -56,9 +57,16 @@ export interface TodayItem {
  * The day plan: generated work (roadmap items, revisions, group tasks) plus the user's own tasks
  * that are scheduled, due or recurring today. Builds the plan first if it hasn't been yet.
  */
-export async function getToday(s: Services, userId: string) {
-  const { tz, day } = await userDay(s, userId);
-  const plan = await ensureDay(s, userId, day);
+export async function getToday(s: Services, userId: string, opts: { wait?: boolean } = {}) {
+  // By default a change that's still re-planning in the background lands before we read. The web
+  // app passes wait: false: it gets the current list at once, with `planning` set while a rebuild
+  // is still running, and asks again shortly.
+  const wait = opts.wait ?? true;
+  if (wait) await replanSettled(userId);
+  const { profile, tz, day } = await userDay(s, userId);
+  // The plan is built once per day (and rebuilt by events when something changes), so opening
+  // Today doesn't rebuild it every time: that was dozens of database round trips per view.
+  const plan = profile.lastPlannedDay === day ? { deferred: deferredOn(userId, day) } : await ensureDay(s, userId, day);
   const bounds = localDayBounds(day, tz);
 
   const generated = (await generatedTasksFor(s.db, userId, day)).filter((t) => t.status !== "cancelled");
@@ -72,7 +80,15 @@ export async function getToday(s: Services, userId: string) {
     .orderBy(asc(scheduleBlocks.startAt));
   const blockTaskIds = [...new Set(dayBlocks.map((b) => b.taskId).filter((x): x is string => !!x))];
 
-  // The user's own tasks that belong to today: scheduled today, due by today, or recurring today.
+  // The user's own tasks that belong to today: scheduled today, due by today, recurring today, or
+  // finished today (completing a task drops its future time block, which would otherwise make the
+  // row vanish the moment you tick it).
+  const finishedToday = (
+    await s.db
+      .select({ taskId: taskCompletions.taskId })
+      .from(taskCompletions)
+      .where(and(eq(taskCompletions.userId, userId), eq(taskCompletions.day, day), eq(taskCompletions.outcome, "completed"), isNull(taskCompletions.voidedAt)))
+  ).map((r) => r.taskId);
   const manualAll = await s.db
       .select()
       .from(tasks)
@@ -83,6 +99,7 @@ export async function getToday(s: Services, userId: string) {
           ne(tasks.status, "cancelled"),
           or(
             blockTaskIds.length ? inArray(tasks.id, blockTaskIds) : undefined,
+            finishedToday.length ? inArray(tasks.id, finishedToday) : undefined,
             and(lte(tasks.dueAt, new Date(bounds.end)), ne(tasks.status, "completed")),
             and(lte(tasks.dueAt, new Date(bounds.end)), gte(tasks.dueAt, new Date(bounds.start))),
             sql`${tasks.recurrence}->>'type' <> 'none'`,
@@ -145,6 +162,7 @@ export async function getToday(s: Services, userId: string) {
   const todays = items.filter((i) => !i.openUntil);
   return {
     day,
+    planning: !wait && isReplanning(userId),
     items,
     summary: {
       total: todays.filter((i) => i.status !== "skipped").length,

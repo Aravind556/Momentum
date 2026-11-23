@@ -75,15 +75,6 @@ export function createLeetCodeAdapter(fetchFn: FetchFn = fetch): IntegrationAdap
       if (typeof q?.titleSlug !== "string" || !SLUG.test(q.titleSlug)) return;
       byDate.set(date, { titleSlug: q.titleSlug, title: String(q.title ?? "").slice(0, 200) });
     };
-    try {
-      const d = await gql<{ activeDailyCodingChallengeQuestion: { date: string; question: { titleSlug: string; title: string } } | null }>(
-        "query { activeDailyCodingChallengeQuestion { date question { titleSlug title } } }",
-        {},
-      );
-      add(d.activeDailyCodingChallengeQuestion?.date, d.activeDailyCodingChallengeQuestion?.question);
-    } catch {
-      /* best effort */
-    }
     const now = new Date();
     const months = new Set<string>();
     for (let t = Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), 1); t <= now.getTime() && months.size < 3; ) {
@@ -99,6 +90,19 @@ export function createLeetCodeAdapter(fetchFn: FetchFn = fetch): IntegrationAdap
           { year, month },
         );
         for (const c of d.dailyCodingChallengeV2?.challenges ?? []) add(c.date, c.question);
+      } catch {
+        /* best effort */
+      }
+    }
+    // The month listings already include today's problem; ask for "today's" separately only if
+    // they didn't (each call costs a second of rate-limit spacing).
+    if (!byDate.has(now.toISOString().slice(0, 10))) {
+      try {
+        const d = await gql<{ activeDailyCodingChallengeQuestion: { date: string; question: { titleSlug: string; title: string } } | null }>(
+          "query { activeDailyCodingChallengeQuestion { date question { titleSlug title } } }",
+          {},
+        );
+        add(d.activeDailyCodingChallengeQuestion?.date, d.activeDailyCodingChallengeQuestion?.question);
       } catch {
         /* best effort */
       }

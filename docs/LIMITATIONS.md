@@ -40,6 +40,15 @@ The **Previous items** section (items covered before a member joined) is read fr
 
 **If you scale out:** drop the cache and read from the database (two small queries), or move the cache to a shared store such as Redis.
 
+## Speed
+
+### The day plan is built once a day and rebuilt in the background
+To keep the app responsive with a remote database (every database round trip costs tens of milliseconds):
+- **Opening Today does not rebuild the plan.** It's built the first time you open a new day, and rebuilt when something changes (settings, follows, availability, group changes). Time passing during the day alone doesn't change it, so items stay on Today until the next rebuild.
+- **Ticking, skipping and editing a task answer immediately; the plan rebuilds in the background.** Anything that reads the plan waits for that rebuild first, so the list is never stale, but it can take a few seconds to show items that the rebuild adds or moves.
+- The "N items moved to a later day" note is remembered in the backend's memory, so it can be missing after a restart (until the next rebuild) and with several backend copies.
+- The screen is updated from the server's answer straight away (the tick, skip, reminder and time on Today; complete, reopen and skip on Tasks), then replaced by the refetched list. Today's list is fetched without waiting for a rebuild (`/api/today?fast=1`) and re-fetched every second or so while the server says it's still planning, so items the rebuild adds appear a moment later.
+
 ## Platforms
 
 ### LeetCode uses an unofficial endpoint

@@ -342,6 +342,8 @@ export interface TodayItem {
 }
 
 export interface TodayView {
+  /** True while the server is still re-planning in the background: ask again shortly. */
+  planning?: boolean;
   day: string;
   items: TodayItem[];
   summary: { total: number; done: number; minutesPlanned: number };

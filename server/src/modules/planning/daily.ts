@@ -20,6 +20,10 @@ import { dailySources, type DailyCandidate, type DayContext } from "./sources.js
 
 const PENDING = ["not_started", "scheduled"] as const;
 
+/** How many new items the last plan build moved to a later day, per user (shown on Today). */
+const lastDeferred = new Map<string, { day: string; n: number }>();
+export const deferredOn = (userId: string, day: string): number => (lastDeferred.get(userId)?.day === day ? lastDeferred.get(userId)!.n : 0);
+
 export interface PlanResult {
   day: string;
   added: number;
@@ -163,6 +167,7 @@ export async function ensureDay(s: Services, userId: string, day: string, opts: 
     for (const p of s.platforms.all()) await verifyTasks(s, userId, p.provider);
   }
 
+  lastDeferred.set(userId, { day, n: result.deferred });
   const today = instantToLocalDate(s.now(), result.tz);
   const changed = result.added > 0 || result.removed > 0;
   let scheduled = false;
@@ -277,7 +282,6 @@ export async function replanToday(s: Services, userId: string): Promise<PlanResu
   return ensureDay(s, userId, instantToLocalDate(s.now(), tz), { forceSchedule: true });
 }
 
-/** Generated tasks for a day (helper for sources and the Today view). */
 /**
  * Yesterday's generated work (roadmap items, group tasks…) that can still be finished because its
  * platform's day hasn't ended: LeetCode's Problem of the Day dated yesterday, until 24:00 UTC.
@@ -287,6 +291,7 @@ export async function openCarriedTasks(s: Services, userId: string, day: string)
   return (await generatedTasksFor(s.db, userId, addDays(day, -1))).filter((t) => t.status !== "cancelled" && (providerDayEnd(s, t) ?? 0) > now);
 }
 
+/** Generated tasks for a day (helper for sources and the Today view). */
 export async function generatedTasksFor(db: Tx, userId: string, day: string): Promise<Task[]> {
   return db
     .select()

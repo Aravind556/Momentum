@@ -4,7 +4,7 @@ import type { Services } from "../../core/context.js";
 import { profiles, roadmapFollows, tasks } from "../../core/db/schema.js";
 import type { AppModule } from "../../core/module.js";
 import { ensureDay } from "./daily.js";
-import { replanSoon } from "./replan.js";
+import { replanInBackground, replanSoon } from "./replan.js";
 import { planningRoutes } from "./routes.js";
 import { todayRoutes } from "./routes-today.js";
 import { dailySource } from "./sources.js";
@@ -40,14 +40,18 @@ export const planningModule: AppModule = {
       const task = await s.db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
       if (!task) return;
       if (task.source !== "manual") await dailySource(task.source)?.onComplete?.(s, task, verified);
-      // Finishing early frees time: let the rest of today move into it.
-      await replanSoon(s, task.ownerId);
+      // Finishing early frees time: let the rest of today move into it. In the background, so the
+      // tick answers at once; reads of the plan wait for it (replanSettled).
+      replanInBackground(s, task.ownerId);
     });
     // Anything that changes what today should hold re-plans today right away.
     const replan = ({ userId }: { userId: string }) => replanSoon(s, userId).then(() => undefined);
+    // Everyday edits answer at once and re-plan in the background; reads wait for it (replanSettled).
+    const replanLater = ({ userId }: { userId: string }) => replanInBackground(s, userId);
+    s.events.on("task.changed", replanLater);
+    s.events.on("task.skipped", replanLater);
+    // Rarer, bigger changes (follows, availability, settings) wait, so the reply can say what changed.
     s.events.on("follow.changed", replan);
-    s.events.on("task.changed", replan);
-    s.events.on("task.skipped", replan);
     s.events.on("availability.changed", replan);
     s.events.on("settings.changed", replan);
     s.events.on("plan.stale", replan);

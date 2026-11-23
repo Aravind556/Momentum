@@ -108,7 +108,7 @@ export async function syncConnection(s: Services, userId: string, provider: stri
   const firstSync = !conn.lastSyncAt;
   // Overlap the previous sync by two days (late-arriving data); a first sync imports a year of history.
   const since = firstSync ? new Date(now - 365 * 86_400_000) : new Date(Math.min(conn.lastSyncAt!.getTime(), now) - 2 * 86_400_000);
-  const referenceData = !!adapter.referenceEventTypes?.length && (await needsReferenceData(s, userId, provider));
+  const referenceData = !!adapter.referenceEventTypes?.length && (await needsReferenceData(s, userId, provider, since, adapter.referenceEventTypes));
 
   let events: NormalizedEvent[];
   try {
@@ -152,7 +152,7 @@ export async function syncConnection(s: Services, userId: string, provider: stri
 }
 
 /** Only users with a POTD-style task need the provider's reference data (saves requests). */
-async function needsReferenceData(s: Services, userId: string, provider: string) {
+async function needsReferenceData(s: Services, userId: string, provider: string, since: Date, referenceTypes: string[]) {
   const [row] = await s.db
     .select({ id: tasks.id })
     .from(tasks)
@@ -165,7 +165,21 @@ async function needsReferenceData(s: Services, userId: string, provider: string)
       ),
     )
     .limit(1);
-  return !!row;
+  if (!row) return false;
+  // Reference records (LeetCode's daily problems) of past days never change, and fetching them is
+  // several calls a second apart. Skip it if we already hold one for every day since the window
+  // started, up to today (UTC): usually the case after the first sync of the day.
+  const firstDay = since.toISOString().slice(0, 10);
+  const have = new Set(
+    (
+      await s.db
+        .select({ date: sql<string>`${externalEvents.data}->>'date'` })
+        .from(externalEvents)
+        .where(and(eq(externalEvents.userId, userId), eq(externalEvents.provider, provider), inArray(externalEvents.type, referenceTypes), gte(externalEvents.occurredAt, new Date(`${firstDay}T00:00:00Z`))))
+    ).map((r) => r.date),
+  );
+  const days = dateRange(firstDay, new Date(s.now()).toISOString().slice(0, 10));
+  return days.some((d) => !have.has(d));
 }
 
 export const MANUAL_SYNC_COOLDOWN_MS = 60_000;

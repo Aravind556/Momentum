@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Check, ExternalLink, Pencil, Plus, RotateCcw, SkipForward, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { CATEGORY_LABELS, GOAL_CATEGORIES, PRIORITY_LABELS, VERIFICATION_LABELS, type VerificationStatus } from "@momentum/shared";
@@ -38,12 +38,27 @@ export function TasksPage({ embedded }: { embedded?: boolean } = {}) {
   const tasks = useQuery({ queryKey: ["tasks"], queryFn: () => api.get<Task[]>("/tasks") });
   const goals = useQuery({ queryKey: ["goals"], queryFn: () => api.get<Goal[]>("/goals") });
 
-  const complete = useAction((t: Task) => api.post(`/tasks/${t.id}/complete`, { outcome: "completed" }), {
+  // The list shows each change at once, from the server's answer; it's refetched in the background.
+  const qc = useQueryClient();
+  const patch = (id: string, change: Partial<Task>) =>
+    qc.setQueryData<Task[]>(["tasks"], (list) => list?.map((x) => (x.id === id ? { ...x, ...change } : x)));
+  const complete = useAction((t: Task) => api.post<{ completion: NonNullable<Task["lastCompletion"]> }>(`/tasks/${t.id}/complete`, { outcome: "completed" }), {
     invalidate: SCHEDULE_KEYS,
     success: "Marked complete",
+    onSuccess: (r, t) => {
+      const c = r.completion;
+      patch(t.id, { lastCompletion: { occurrenceKey: c.occurrenceKey, outcome: c.outcome, verificationStatus: c.verificationStatus, completedAt: c.completedAt }, ...(t.recurrence.type === "none" && c.outcome === "completed" ? { status: "completed" } : {}) });
+    },
   });
-  const reopen = useAction((t: Task) => api.post(`/tasks/${t.id}/reopen`), { invalidate: SCHEDULE_KEYS, success: "Task reopened" });
-  const skip = useAction((t: Task) => api.post(`/tasks/${t.id}/${t.status === "skipped" ? "unskip" : "skip"}`), { invalidate: SCHEDULE_KEYS });
+  const reopen = useAction((t: Task) => api.post(`/tasks/${t.id}/reopen`), {
+    invalidate: SCHEDULE_KEYS,
+    success: "Task reopened",
+    onSuccess: (_, t) => patch(t.id, { lastCompletion: null, ...(t.recurrence.type === "none" ? { status: "not_started" } : {}) }),
+  });
+  const skip = useAction((t: Task) => api.post(`/tasks/${t.id}/${t.status === "skipped" ? "unskip" : "skip"}`), {
+    invalidate: SCHEDULE_KEYS,
+    onSuccess: (_, t) => patch(t.id, { status: t.status === "skipped" ? "not_started" : "skipped" }),
+  });
   const del = useAction((t: Task) => api.del<{ archived: boolean }>(`/tasks/${t.id}`), {
     invalidate: SCHEDULE_KEYS,
     success: (r) => (r?.archived ? "Task archived (it has history, so it was kept)" : "Task deleted"),
